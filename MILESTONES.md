@@ -27,12 +27,12 @@
 
 ### 8/20 四（3.5h）
 
-- [V] 送出 Google Cloud $100 credits 申請表單（**8/31 硬截止，核發需 1–5 工作天**）
-- [ ] 建立 public GitHub repo，首次 commit 含 `LICENSE`（Apache-2.0）
-- [ ] 確認 GitHub 頁面 About 區顯示授權標籤
-- [ ] ClickHouse Cloud 服務開通，記下連線資訊
-- [ ] 建立 `.env.example`，值全空
-- [ ] 本機 `uv run --with mcp-clickhouse mcp-clickhouse` 能連上叢集
+- [X] 送出 Google Cloud $100 credits 申請表單（**8/31 硬截止，核發需 1–5 工作天**）
+- [x] 建立 public GitHub repo，首次 commit 含 `LICENSE`（Apache-2.0）→ https://github.com/erickh826/greenlight-agent
+- [x] 確認 GitHub 頁面 About 區顯示授權標籤（GitHub 已自動偵測 Apache-2.0）
+- [x] ClickHouse Cloud 服務開通，記下連線資訊 → https://console.clickhouse.cloud/signUp
+- [x] 建立 `.env.example`，值全空
+- [ ] 本機 `uv run --with mcp-clickhouse mcp-clickhouse` 能連上叢集（`uv` 已安裝；待 `.env` 填入憑證後跑 `./scripts/test_mcp_clickhouse.sh`）
 
 **DoD**：repo 公開且授權可見；本機 MCP server 能列出資料庫。
 
