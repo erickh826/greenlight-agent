@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test mcp-clickhouse connectivity by listing databases via the MCP protocol.
+# Test mcp-clickhouse connectivity by running SELECT 1 via the MCP protocol.
 #
 # Prerequisites:
 #   - uv installed (https://docs.astral.sh/uv/)
@@ -39,7 +39,7 @@ echo "Connecting to ${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT} as ${CLICKHOUSE_USER}.
 
 export PATH="${HOME}/.local/bin:${PATH}"
 
-# Send MCP initialize + tools/call to list databases
+# Send MCP initialize + tools/call to run SELECT 1
 python3 - <<'PY'
 import json
 import os
@@ -48,7 +48,7 @@ import sys
 
 env = {**os.environ}
 proc = subprocess.Popen(
-    ["uv", "run", "--with", "mcp-clickhouse", "mcp-clickhouse"],
+    ["uv", "run", "--with", "mcp-clickhouse", "--python", "3.13", "mcp-clickhouse"],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
@@ -61,12 +61,16 @@ def send(msg):
     proc.stdin.flush()
 
 def recv():
-    line = proc.stdout.readline()
-    if not line:
-        err = proc.stderr.read()
-        print(err, file=sys.stderr)
-        sys.exit(1)
-    return json.loads(line)
+    while True:
+        line = proc.stdout.readline()
+        if not line:
+            err = proc.stderr.read()
+            print(err, file=sys.stderr)
+            sys.exit(1)
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            continue
 
 send({
     "jsonrpc": "2.0",
@@ -97,18 +101,19 @@ send({
     "id": 3,
     "method": "tools/call",
     "params": {
-        "name": "run_select_query",
-        "arguments": {"query": "SHOW DATABASES"},
+        "name": "run_query",
+        "arguments": {"query": "SELECT 1"},
     },
 })
 query_resp = recv()
-print("SHOW DATABASES:", json.dumps(query_resp, indent=2))
+print("SELECT 1:", json.dumps(query_resp, indent=2))
 
 proc.terminate()
 proc.wait(timeout=5)
 
-if "error" in query_resp:
+if "error" in query_resp or query_resp.get("result", {}).get("isError"):
+    print("\n✗ MCP server reachable but the query failed (see above).", file=sys.stderr)
     sys.exit(1)
 
-print("\n✓ MCP server connected and listed databases successfully.")
+print("\n✓ MCP server connected and ran SELECT 1 successfully.")
 PY
