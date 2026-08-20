@@ -40,9 +40,25 @@ chmod +x scripts/test_mcp_clickhouse.sh
 ./scripts/test_mcp_clickhouse.sh
 ```
 
-**DoD**：輸出 `✓ MCP server connected and listed databases successfully.`
+**DoD**：輸出 `✓ MCP server connected and ran SELECT 1 successfully.`
 
-## 4. GitHub About 區授權標籤
+## 4. 驗證 ADK ↔ MCP ↔ Gemini 閉環
+
+需要 Google 認證：`.env` 中設 `GOOGLE_API_KEY`，或設
+`GOOGLE_GENAI_USE_VERTEXAI=true` ＋ `GOOGLE_CLOUD_PROJECT`。
+模型預設 `gemini-2.5-flash`，可用 `M0_MODEL` 覆寫。
+
+```bash
+uv run --python 3.13 --with google-adk --with mcp-clickhouse \
+    scripts/m0_adk_roundtrip.py
+```
+
+腳本自行寫出 `docs/m0-mcp-trace.log`（連線 host 與密碼會自動遮蔽）。
+
+**DoD**：log 中出現 `FunctionCall`（tool `run_query` ＋ Gemini 自選的 SQL）、
+對應的 `FunctionResponse`，結尾為 `result: PASS`。
+
+## 5. GitHub About 區授權標籤
 
 Repo 已設為 public：`https://github.com/erickh826/greenlight-agent`
 
@@ -60,4 +76,5 @@ GitHub 通常會自動從根目錄 `LICENSE` 偵測；若未顯示，手動設�
 - [ ] ClickHouse Cloud 服務已建立
 - [ ] `.env` 已填入連線資訊（**不要 commit**）
 - [ ] `./scripts/test_mcp_clickhouse.sh` 通過
+- [ ] `scripts/m0_adk_roundtrip.py` 通過，`docs/m0-mcp-trace.log` 已產出
 - [ ] GitHub About 區顯示 Apache-2.0

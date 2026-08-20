@@ -22,5 +22,6 @@ build/
 *.csv
 data/
 *.log
+!docs/m0-mcp-trace.log
 .idea/
 .vscode/

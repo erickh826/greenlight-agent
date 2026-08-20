@@ -260,10 +260,13 @@ class FilmMotifs(BaseModel):
 
 ```python
 # app/mcp.py — 介面以實作時的 ADK 版本為準
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
+from mcp import StdioServerParameters
 
 clickhouse_tools = MCPToolset(
-    connection_params=StdioServerParameters(
+    connection_params=StdioConnectionParams(
+      server_params=StdioServerParameters(
         command="uv",
         args=["run", "--with", "mcp-clickhouse", "--python", "3.13", "mcp-clickhouse"],
         env={
@@ -274,11 +277,14 @@ clickhouse_tools = MCPToolset(
             "CLICKHOUSE_SECURE":   "true",
             "CLICKHOUSE_DATABASE": os.environ.get("CLICKHOUSE_DATABASE", "default"),
         },
+      ),
     )
 )
 ```
 
-暴露的工具：`list_databases`、`list_tables`、`run_select_query`（唯讀）。
+暴露的工具：`list_databases`、`list_tables`、`run_query`（預設唯讀）。
+
+> 註：`mcp-clickhouse` 0.3.0 起工具名為 `run_query`，非 `run_select_query`（後者僅存在於 0.1.x）。唯讀由 `CLICKHOUSE_ALLOW_WRITE_ACCESS` 預設關閉保證。
 
 **Cloud Run 注意事項**：容器映像需預裝 `uv` 與 `mcp-clickhouse`，避免冷啟動時才下載。建議在 Dockerfile 中 `uv pip install mcp-clickhouse` 後改用直接命令啟動。
 
