@@ -32,7 +32,7 @@
 - [x] 確認 GitHub 頁面 About 區顯示授權標籤（GitHub 已自動偵測 Apache-2.0）
 - [x] ClickHouse Cloud 服務開通，記下連線資訊 → https://console.clickhouse.cloud/signUp
 - [x] 建立 `.env.example`，值全空
-- [ ] 本機 `uv run --with mcp-clickhouse mcp-clickhouse` 能連上叢集（`uv` 已安裝；待 `.env` 填入憑證後跑 `./scripts/test_mcp_clickhouse.sh`）
+- [x] 本機 `uv run --with mcp-clickhouse mcp-clickhouse` 能連上叢集 → `./scripts/test_mcp_clickhouse.sh` ✓
 
 **DoD**：repo 公開且授權可見；本機 MCP server 能列出資料庫。
 
