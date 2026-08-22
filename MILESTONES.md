@@ -38,10 +38,10 @@
 
 ### 8/21 五（3.5h）
 
-- [ ] `pip install google-adk`，建立最小 agent
-- [ ] MCPToolset 掛載 `mcp-clickhouse`
-- [ ] Gemini 完成一次完整往返：FunctionCall → run_select_query → FunctionResponse
-- [ ] **保存這段 log**（截圖 ＋ 文字），提交材料會用到
+- [x] `google-adk` 安裝（走 `uv`，非 `pip`），最小 agent 在 `scripts/m0_adk_roundtrip.py`
+- [x] MCPToolset 掛載 `mcp-clickhouse` → discover 到 `list_databases` / `list_tables` / `run_query`（環境坑與版本組合見 `docs/M0_SETUP.md` §4.3）
+- [x] Gemini 完成一次完整往返：FunctionCall(`list_databases`) → FunctionResponse → 模型結論
+- [x] **保存這段 log** → `docs/m0-mcp-trace.log`（host/password 已遮蔽）
 
 **DoD**：一段 log，內容是 Gemini 自己決定查詢並拿到 ClickHouse 回應。
 
