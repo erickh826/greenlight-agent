@@ -1,0 +1,35 @@
+=== M0 MCP round-trip trace ===
+timestamp:  2026-08-22T07:52:41.503369+00:00
+model:      gemini-2.5-flash
+mcp server: mcp-clickhouse (stdio subprocess)
+clickhouse: <CLICKHOUSE_HOST>:8443 (TLS)
+
+tools discovered via MCP: ['list_databases', 'list_tables', 'run_query']
+
+USER PROMPT: Check that the ClickHouse database is reachable and responding, then tell me what you found.
+
+--- FunctionCall #1 (from m0_probe) ---
+tool: list_databases
+args: {}
+
+--- FunctionResponse #1 (tool: list_databases) ---
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "[\"INFORMATION_SCHEMA\", \"default\", \"information_schema\", \"system\"]"
+    }
+  ],
+  "structuredContent": {
+    "result": "[\"INFORMATION_SCHEMA\", \"default\", \"information_schema\", \"system\"]"
+  },
+  "isError": false
+}
+
+--- Model text (m0_probe) ---
+The ClickHouse database is reachable and responding, and I was able to retrieve a list of its available databases.
+
+=== summary ===
+function calls:     1
+function responses: 1
+result: PASS -- Gemini chose a query and received a ClickHouse response over MCP.

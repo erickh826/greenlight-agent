@@ -6,8 +6,10 @@ Gemini, and lets the model decide its own query. Every FunctionCall and
 FunctionResponse is written to the trace log so the runtime MCP path is visible.
 
 Usage:
-    uv run --python 3.13 --with google-adk --with mcp-clickhouse \
-        scripts/m0_adk_roundtrip.py
+    ./scripts/run_m0_roundtrip.sh
+
+Do not install mcp-clickhouse into this process's environment -- it pins an
+older `mcp` than google-adk needs. The server runs as its own uv subprocess.
 
 Requires .env with ClickHouse credentials and Google auth (either
 GOOGLE_API_KEY, or GOOGLE_GENAI_USE_VERTEXAI=true with GOOGLE_CLOUD_PROJECT).
