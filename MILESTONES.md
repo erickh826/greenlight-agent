@@ -74,11 +74,16 @@
 
 ### 8/25 二（3.5h）
 
-- [ ] `etl/03_pageviews.py`：REST API，每條目一次呼叫取完整區間
+- [ ] `etl/03_pageviews.py`：REST API，每條目一次呼叫取完整區間（2015-07-01 至今）
 - [ ] Rate limit ≤ 5 req/s，含失敗重試
 - [ ] 計算 `pageview_peak` 與 `pageview_decay_days`
 
-**DoD**：`attention.parquet` 約 270 萬列；抽查 5 部片的曲線形狀合理（上映前後有明顯峰值）。
+> **指標定義**：此欄位對外一律稱 **Wikipedia page-interest proxy**，不是「上映後 90 天注意力曲線」。
+> Pageviews API 資料起點為 2015-07-01，**2015-07 前上映的電影不具備上映期峰值**，其數值只能當作
+> 2015 至今的持續關注度代理。兩者不可混用於同一個 `attention_score`（處理方式見 §M1 註）。
+
+**DoD**：`attention.parquet` 約 **610 萬列**（1500 部 × 約 4,070 天）；抽查 5 部 **2015-07 後上映**
+之電影，曲線形狀合理（上映前後有明顯峰值）。
 
 ### 8/26 三（3.5h）
 
@@ -127,18 +132,19 @@
 
 ### 8/31 一（3.5h）
 
-- [ ] `PredictAgent`：自主組裝查詢條件（年份、預算區間、母題交集）
+- [ ] `PredictAgent`（對外稱 **Analogue / Evidence Scoring Agent**）：自主組裝查詢條件
+      （年份、預算區間、母題交集），檢索歷史類比案例
 - [ ] SQL 錯誤重試迴圈（最多 2 次）
 
-**DoD**：能取回同類作品的 ROI 分位數與注意力特徵。
+**DoD**：能取回同類歷史作品的 ROI 分位數與 page-interest proxy 特徵。
 
 ### 9/1 二（3.5h）
 
 - [ ] 可解釋評分邏輯：`commercial_score` ＋ `attention_score` → `composite`
-- [ ] `EvidenceItem` 填充：每個數字附帶產生它的 SQL
-- [ ] `insufficient_evidence` 分支（樣本數 < 8）
+- [ ] `EvidenceItem` 填充：輸出 **historical-analogue evidence**，每個數字附帶產生它的 SQL
+- [ ] `insufficient_evidence` 分支（樣本數 < 8，不硬猜）
 
-**DoD**：評分附帶證據列表，不是黑箱數字。
+**DoD**：評分附帶完整的歷史類比證據列表，而非黑箱票房預測數字。
 
 ### 9/2 三（3.5h）
 

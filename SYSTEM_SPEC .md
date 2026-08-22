@@ -10,10 +10,12 @@
 
 ### 1.1 目標
 
-一個三層 agent 系統：對四萬部歷史電影的抽象結構母題做即時多維聚合，產出有歷史證據支撐的新題材提案，並生成可用於 pitch 的動態分鏡。
+一個三層 agent 系統：對約 1,500 部可驗證歷史電影（2000 年後、具備完整票房與預算數據、匹配維基摘要）的抽象結構母題做即時多維聚合，產出有歷史類比證據（historical-analogue evidence）支撐的新題材提案，並生成可用於 pitch 的動態分鏡。
 
 ### 1.2 Non-goals（明確不做）
 
+- 宣稱覆蓋不可驗證的四萬部語料全集（聚焦於 ~1,500 部具備完整財務與母題數據的高信度子集，避免 credibility gap）
+- 做出未經校準的「黑箱票房預測」（定位為歷史類比證據與指標評分：Analogue / Evidence Scoring）
 - 向量檢索、混合查詢、HNSW 索引
 - Veo 影片生成
 - Context Caching
@@ -53,14 +55,14 @@
 │  │  └─ GET  /            靜態前端             │  │
 │  ├────────────────────────────────────────────┤  │
 │  │ ADK Root Agent (SequentialAgent)           │  │
-│  │  ├─ RecombineAgent  ─┐                     │  │
-│  │  ├─ PredictAgent    ─┼─ MCPToolset         │  │
-│  │  └─ StoryboardAgent  │  （核准後才執行）    │  │
-│  ├──────────────────────┼─────────────────────┤  │
+│  │  ├─ RecombineAgent                  ─┐     │  │
+│  │  ├─ PredictAgent (Analogue Scoring) ─┼─ MCPToolset
+│  │  └─ StoryboardAgent                  │  （核准後才執行）
+│  ├──────────────────────────────────────┼─────┤  │
 │  │ mcp-clickhouse（stdio 子行程，同容器）      │  │
-│  └──────────────────────┼─────────────────────┘  │
-└─────────────────────────┼────────────────────────┘
-          ┌───────────────┴────────┬──────────────┐
+│  └──────────────────────────────────────┼─────┘  │
+└─────────────────────────────────────────┼────────┘
+          ┌───────────────┴────────┬──────┴───────┐
           ▼                        ▼              ▼
    ClickHouse Cloud        Gemini / Imagen /    GCS
    （films + attention）   Cloud TTS            （媒體資產）
@@ -117,7 +119,7 @@ ENGINE = MergeTree
 ORDER BY (film_id, date);
 ```
 
-規模約 270 萬列（1500 部 × 約 1800 天）。
+規模約 610 萬列（1500 部 × 2015-07 至今約 4070 天）。
 
 ### 3.3 Materialized Views
 
@@ -159,7 +161,9 @@ FROM (
 WHERE motif_a < motif_b
 GROUP BY motif_a, motif_b;
 
--- 上映後 90 天注意力曲線
+-- 維基頁面關注度代理特徵（Wikipedia page-interest proxy）
+-- 註：2015-07 之後上映的電影具備上映期注意力峰值與衰減特徵；
+-- 2015 年前上映之電影則作為 2015 至今的長尾/持續關注度代理指標（sustained interest proxy）。
 CREATE MATERIALIZED VIEW mv_attention_curve
 ENGINE = AggregatingMergeTree
 ORDER BY (film_id, days_since_peak)
@@ -200,6 +204,7 @@ Wikidata 作為主幹（提供 QID、票房、預算、類型、以及 enwiki �
 
 CMU Movie Summary Corpus 提供劇情文本。
 
+- 來源：CMU Movie Summary Corpus（維基百科劇情摘要衍生，授權為 **CC BY-SA 3.0**）
 - 下載 `MovieSummaries.tar.gz`，使用 `plot_summaries.txt` 與 `movie.metadata.tsv`
 - **Join 風險**：CMU 用 Wikipedia page ID 與 Freebase ID，與 Wikidata QID 無直接對應。實務作法為正規化標題（小寫、去標點、去 "The"）＋ 上映年份 ±1 的模糊比對
 - 預期匹配率 70–85%
@@ -211,12 +216,13 @@ CMU Movie Summary Corpus 提供劇情文本。
 
 - Endpoint: `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{title}/daily/{start}/{end}`
 - **每個條目一次呼叫即回傳完整日期區間**，故 1500 部片僅需約 1500 次呼叫
-- 起始日期 20150701（API 資料起點），終止為今日
+- 起始日期 20150701（API 資料起點），終止為今日（約 4,070 天）
+- **指標定義**：改稱 **Wikipedia page-interest proxy**。2015 年前上映之電影不能宣稱具備「上映後 90 天」關注度特徵，而係作為 2015 至今的持續關注度代理指標；2015-07 後上映之電影則具備真實上映期關注度曲線
 - 加入 rate limit（每秒 ≤ 5 次）與失敗重試
-- 同時計算 `pageview_peak` 與 `pageview_decay_days` 寫回 films
-- 授權：CC0
+- 計算 `pageview_peak` 與 `pageview_decay_days` 寫回 films
+- 授權：CC0 / Wikimedia API 使用條款
 
-**輸出**：`attention.parquet`（約 270 萬列）
+**輸出**：`attention.parquet`（約 610 萬列）
 
 ### 4.4 `04_motif_enrichment.py`
 
@@ -246,9 +252,18 @@ class FilmMotifs(BaseModel):
 - 建表 → 載入 → 建 MV → 驗證
 - 冪等：以 `TRUNCATE` 後重載，而非 upsert
 
-### 4.6 資料授權處理
+### 4.6 資料治理與 Attribution 說明
 
-**劇情原文不進入 repo 也不進入 ClickHouse。** ETL 執行時才下載 CMU corpus，僅將衍生的母題欄位寫入資料庫。README 列明三個來源與授權，並聲明分析邊界。
+> **重要免責宣告**：以下為本專案之工程架構與資料治理分析，**非正式法律意見**。提交前請再次核對各資料源之條款與授權要求。
+
+1. **資料源授權矩陣**：
+   - **Wikidata SPARQL**：CC0。
+   - **Wikimedia Pageviews API**：CC0 / 遵循 Wikimedia API 規範。
+   - **CMU Movie Summary Corpus**：CC BY-SA 3.0（維基百科衍生），需清楚註明原作者與來源引用（Attribution）。
+2. **資料治理原則（Data Governance）**：
+   - **劇情原文不進入 repo 也不進入 ClickHouse。** CMU corpus 僅於本地 ETL 階段短暫下載處理，經 Gemini Flash 抽取高層次抽象結構特徵（母題、角色原型、結構類型）後即丟棄原始文本。
+   - 資料庫與應用程式僅儲存與聚合衍生特徵，不儲存、不展示任何受版權保護的劇情原文。
+   - README 與文件清楚列明所有資料來源、授權方式與特徵抽取邊界。
 
 ---
 
@@ -311,8 +326,10 @@ Phase B（收斂）：無 tools，response_schema=<Pydantic>
 | Agent | 輸入 | 工具 | 輸出契約 | 終止條件 |
 |---|---|---|---|---|
 | **RecombineAgent** | 使用者的方向提示（可空） | clickhouse_tools | `TreatmentProposal × 2` | 產出穩健＋彩蛋兩案 |
-| **PredictAgent** | 兩個 proposal 的母題與原型 | clickhouse_tools | `PredictionScore × 2` | 樣本數 < 8 → `insufficient_evidence` |
+| **PredictAgent**<br>*(Analogue / Evidence Scoring)* | 兩個 proposal 的母題與原型 | clickhouse_tools | `PredictionScore × 2` | 樣本數 < 8 → `insufficient_evidence` |
 | **StoryboardAgent** | 經核准的單一 proposal | Imagen、TTS、GCS | `SceneAsset × 3` | 3 組圖＋音訊 URL |
+
+> **對外敘事與定位**：`PredictAgent` 定位為 **Analogue / Evidence Scoring Agent**，其職責並非做出無依據的「票房預測」，而是從 ClickHouse 歷史資料中檢索最具代表性的相似類比案例（historical analogues），輸出由具體查詢結果支撐的類比證據（historical-analogue evidence）與指標評分。
 
 **RecombineAgent 的彩蛋分支**：主線完成後，額外一次 `temperature=1.5` 的呼叫，指示其產出刻意違背資料建議的組合。這是**一次呼叫**，不是第二條完整管線。
 
@@ -338,12 +355,13 @@ class TreatmentProposal(BaseModel):
     evidence: list[EvidenceItem]
 
 class PredictionScore(BaseModel):
+    """Analogue / Evidence Scoring 結構體：輸出歷史類比證據而非黑箱預測"""
     proposal_title: str
-    commercial_score: float           # 0–100
-    attention_score: float            # 0–100
+    commercial_score: float           # 0–100（基於同類歷史作品 ROI 分布）
+    attention_score: float            # 0–100（基於同類歷史作品維基關注度特徵）
     composite: float
     confidence: Literal["high", "medium", "low", "insufficient_evidence"]
-    evidence: list[EvidenceItem]
+    evidence: list[EvidenceItem]      # 支撐評分的歷史類比查詢證據清單
     caveats: list[str]
 
 class SceneAsset(BaseModel):
@@ -354,14 +372,14 @@ class SceneAsset(BaseModel):
     duration_sec: float
 ```
 
-**評分必須可解釋**：`composite` 不是黑箱數字，而是由 `evidence` 列表中的具體查詢結果組成。前端要把兩者並列顯示。
+**評分必須可解釋**：`composite` 不是黑箱數字，而是由 `evidence` 列表中的具體歷史類比查詢結果組成。前端要把兩者並列顯示。
 
 ### 5.6 編排
 
 Root Agent 使用 ADK 的 `SequentialAgent`：
 
 ```
-RecombineAgent → PredictAgent → [核准閘門] → StoryboardAgent
+RecombineAgent → PredictAgent (Analogue Scoring) → [核准閘門] → StoryboardAgent
 ```
 
 核准閘門不是 agent，是 FastAPI 層的狀態機暫停點。流程在 `awaiting_approval` 事件後掛起，收到 `POST /approve/{run_id}` 才續跑。

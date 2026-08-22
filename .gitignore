@@ -25,3 +25,8 @@ data/
 !docs/m0-mcp-trace.log
 .idea/
 .vscode/
+
+# Agent skill packs (vendored from google/skills, not project source)
+.agents/
+.claude/
+skills-lock.json
