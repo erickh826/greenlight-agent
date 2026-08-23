@@ -57,11 +57,20 @@
 
 ### 8/22–8/23 週末（2h，低強度）
 
-- [ ] `etl/01_wikidata_spine.py`：SPARQL 依年份分批查詢
-- [ ] 下載 CMU Movie Summary Corpus
-- [ ] 目視檢查兩邊的欄位與標題格式
+- [x] `etl/01_wikidata_spine.py`：SPARQL 依年份分批查詢，幣別過濾 ＋ 多值屬性聚合
+- [x] 下載 CMU Movie Summary Corpus（`scripts/fetch_cmu_corpus.sh`）
+- [x] 目視檢查兩邊的欄位與標題格式 → `title` 與 `enwiki_title` 有 47% 不同，不可互換
+- [x] `etl/02_cmu_join.py` 提前完成（原訂 8/24），匹配率 77.6%
+- [x] 漏斗率實測報告 → `docs/M1_DATA_FINDINGS.md`
 
-**DoD**：`films_spine.parquet` 存在，列數 > 3000。
+**DoD**：`films_spine.parquet` 存在，1,595 部唯一影片（要求票房＋預算）。
+原 DoD 訂「列數 > 3000」，但即使放寬成規格 §4.1 的原始條件（僅要求票房）
+實測也只有 2,157 部——規格的 5000–15000 估計偏高。
+
+> ⚠️ 實測推翻兩個計畫假設，**8/24 開工前必讀 `docs/M1_DATA_FINDINGS.md`**：
+> 1. **CMU 語料在 2012 年結束**，與 pageviews API 起點（2015-07）完全不重疊。
+>    沒有任何一部片能同時有劇情與上映期關注度曲線。
+> 2. **1500 部門檻達不到**：放寬至 1990 年後仍只有 1,238 部。
 
 ### 8/24 一（3.5h）
 

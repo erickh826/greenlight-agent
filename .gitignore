@@ -30,3 +30,8 @@ data/
 .agents/
 .claude/
 skills-lock.json
+suggestion/
+
+# CMU Movie Summary Corpus — CC BY-SA 3.0, downloaded at ETL time, never committed
+data/MovieSummaries/
+data/MovieSummaries.tar.gz
