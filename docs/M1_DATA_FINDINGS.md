@@ -28,14 +28,37 @@ CMU 有劇情的影片中，2013 年只有 **70 部**、2014 年只有 **4 部**
 對 2012 年以前的片，2015 年起算的 pageviews 量到的是重映、串流上架、
 演員新聞等隨機事件，不是上映反應。
 
-三條路：
+**已採取的處理（2026-08-24 決定）：保留 pageviews，重新定義語意。**
 
-1. **保留 pageviews，重新定義語意** — 誠實稱為「2015 年後的持續關注度」，
-   代表作品的長尾文化存續度，不宣稱與上映表現有關。`attention_score` 改為
-   「長尾關注度分數」。**這是唯一不需要換資料源的選項。**
-2. **放棄 attention 維度** — 只做 ROI ＋ 母題聚合。`MILESTONES.md` 的 M1
-   kill criteria 已允許縮回兩維。
-3. 換劇情資料源（TMDB 等）——但那不是 CC0/CC BY-SA，且時間不允許。
+欄位全面改名，移除 `pageview_peak` 與 `pageview_decay_days`，改為
+`interest_median_daily` / `interest_p95_daily` / `interest_trend_slope` /
+`interest_cohort_pct` / `years_to_measurement`。詳見 `SYSTEM_SPEC .md` §3.1。
+
+改名而非只加標註的理由：agent 讀的是 DDL。在一個名為 `pageview_peak` 的欄位
+旁邊放一個 `attention_kind` 標註，並不會阻止模型依欄位名推論出上映反應敘事。
+
+### 量測延遲差 25 倍——比命名更難處理的問題
+
+影片上映到 pageviews 起算的延遲：
+
+| 延遲 | 影片數 |
+|---|---|
+| 0–5 年 | 235 |
+| 6–15 年 | 608 |
+| 16–25 年 | 395 |
+
+最短 1 年（2014 年片，仍混著上映餘波）、最長 25 年（1990 年片，純目錄型關注）。
+**即使全部都叫 `sustained_interest`，跨年份的原始數值仍不可比。**
+
+處理方式：`interest_cohort_pct`，同 5 年 release cohort 內的百分位。
+實測 25 部樣本驗證有效：
+
+| 欄位 | 與量測延遲的相關係數 |
+|---|---|
+| `interest_median_daily`（原始）| **+0.272** |
+| `interest_cohort_pct`（正規化後）| **−0.039** |
+
+`app/scoring.py` 的 `attention_score` 只能由 `interest_cohort_pct` 計算。
 
 ---
 

@@ -27,12 +27,16 @@ from pathlib import Path
 from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from google.genai import types
-from mcp import StdioServerParameters
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+# The toolset used to be built here. It now comes from the same factory the
+# application uses, so this evidence script exercises the real runtime path
+# rather than a parallel copy of it that could drift.
+from app.mcp import build_clickhouse_tools  # noqa: E402
+
 TRACE_PATH = ROOT / "docs" / "m0-mcp-trace.log"
 
 # The connection host is treated as a secret (spec 8.2 scans history for it).
@@ -77,37 +81,12 @@ class Trace:
         self.handle.close()
 
 
-def build_toolset() -> MCPToolset:
-    """Mount mcp-clickhouse over stdio. This is the only runtime DB path."""
-    return MCPToolset(
-        connection_params=StdioConnectionParams(
-            server_params=StdioServerParameters(
-                command="uv",
-                args=["run", "--with", "mcp-clickhouse", "--python", "3.13",
-                      "mcp-clickhouse"],
-                env={
-                    "CLICKHOUSE_HOST": os.environ["CLICKHOUSE_HOST"],
-                    "CLICKHOUSE_PORT": os.environ.get("CLICKHOUSE_PORT", "8443"),
-                    "CLICKHOUSE_USER": os.environ["CLICKHOUSE_USER"],
-                    "CLICKHOUSE_PASSWORD": os.environ["CLICKHOUSE_PASSWORD"],
-                    "CLICKHOUSE_SECURE": os.environ.get("CLICKHOUSE_SECURE", "true"),
-                    "CLICKHOUSE_DATABASE": os.environ.get("CLICKHOUSE_DATABASE",
-                                                          "default"),
-                    "PATH": os.environ.get("PATH", ""),
-                    "HOME": os.environ.get("HOME", ""),
-                },
-            ),
-            timeout=120,
-        )
-    )
-
-
 async def main() -> int:
     load_env()
     model = os.environ.get("M0_MODEL") or os.environ.get("MODEL_FAST") \
         or "gemini-2.5-flash"
 
-    toolset = build_toolset()
+    toolset = build_clickhouse_tools()
     agent = Agent(
         name="m0_probe",
         model=model,

@@ -1,5 +1,5 @@
 === M0 MCP round-trip trace ===
-timestamp:  2026-08-22T07:52:41.503369+00:00
+timestamp:  2026-08-23T16:07:20.009226+00:00
 model:      gemini-2.5-flash
 mcp server: mcp-clickhouse (stdio subprocess)
 clickhouse: <CLICKHOUSE_HOST>:8443 (TLS)
@@ -9,25 +9,27 @@ tools discovered via MCP: ['list_databases', 'list_tables', 'run_query']
 USER PROMPT: Check that the ClickHouse database is reachable and responding, then tell me what you found.
 
 --- FunctionCall #1 (from m0_probe) ---
-tool: list_databases
-args: {}
+tool: run_query
+args: {
+  "query": "SELECT 1"
+}
 
---- FunctionResponse #1 (tool: list_databases) ---
+--- FunctionResponse #1 (tool: run_query) ---
 {
   "content": [
     {
       "type": "text",
-      "text": "[\"INFORMATION_SCHEMA\", \"default\", \"information_schema\", \"system\"]"
+      "text": "{\"columns\": [\"1\"], \"rows\": [[1]]}"
     }
   ],
   "structuredContent": {
-    "result": "[\"INFORMATION_SCHEMA\", \"default\", \"information_schema\", \"system\"]"
+    "result": "{\"columns\": [\"1\"], \"rows\": [[1]]}"
   },
   "isError": false
 }
 
 --- Model text (m0_probe) ---
-The ClickHouse database is reachable and responding, and I was able to retrieve a list of its available databases.
+The ClickHouse database is reachable and responding, and a `SELECT 1` query returned the value 1.
 
 === summary ===
 function calls:     1

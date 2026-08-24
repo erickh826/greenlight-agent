@@ -83,23 +83,30 @@
 
 ### 8/25 二（3.5h）
 
-- [ ] `etl/03_pageviews.py`：REST API，每條目一次呼叫取完整區間（2015-07-01 至今）
-- [ ] Rate limit ≤ 5 req/s，含失敗重試
-- [ ] 計算 `pageview_peak` 與 `pageview_decay_days`
+- [x] `etl/03_pageviews.py` 已寫好（smoke test 25 部通過，101,775 列）
+- [ ] 全量跑完 1,238 部
+- [ ] 抽查 5 部曲線形狀
 
-> **指標定義**：此欄位對外一律稱 **Wikipedia page-interest proxy**，不是「上映後 90 天注意力曲線」。
-> Pageviews API 資料起點為 2015-07-01，**2015-07 前上映的電影不具備上映期峰值**，其數值只能當作
-> 2015 至今的持續關注度代理。兩者不可混用於同一個 `attention_score`（處理方式見 §M1 註）。
+指標已改定義（`SYSTEM_SPEC .md` §3.1、§4.3）。條目名用 `enwiki_title`，
+用 `title` 會全部 404。輸出 `interest_median_daily` / `interest_p95_daily` /
+`interest_trend_slope` / `interest_cohort_pct` / `years_to_measurement`，
+**不再有 `pageview_peak` 與 `pageview_decay_days`**。
 
-**DoD**：`attention.parquet` 約 **610 萬列**（1500 部 × 約 4,070 天）；抽查 5 部 **2015-07 後上映**
-之電影，曲線形狀合理（上映前後有明顯峰值）。
+**DoD**：`attention.parquet` 約 **504 萬列**（1,238 部 × 約 4,071 天）；
+`interest_cohort_pct` 在每個 `release_bucket` 內約略均勻分布，
+且與 `years_to_measurement` 無顯著相關（smoke test 為 −0.039，原始值為 +0.272）。
 
 ### 8/26 三（3.5h）
 
-- [ ] `etl/vocab.py`：受控詞彙表（母題 30 個、角色原型 25 個、三幕結構 6 種）
-- [ ] `etl/04_motif_enrichment.py`：Gemini Flash ＋ Pydantic response_schema
+- [x] `etl/vocab.py`：受控詞彙表（母題 30、角色原型 25、三幕結構 6、衝突尺度 3、cohort 5）
+      —— 為四個下游的單一來源，`app/contracts.py` 的 Enum 由它生成
+- [ ] `etl/04_motif_enrichment.py`：Gemini Flash ＋ `app/contracts.py` 的 `FilmMotifs`
 - [ ] 併發 10，指數退避重試
-- [ ] 全量跑完 1500 部
+- [ ] 劇情文本先清 wiki markup（29.6% 含 `{{...}}` / `[[...]]` / `<ref>`），
+      過短者（< 500 字元，27 部）設下限跳過
+- [ ] 全量跑完 1,238 部
+- [ ] **印出母題分布直方圖** —— 受控詞彙表擋得住近義詞爆炸，但擋不住眾數塌縮。
+      若前 3 個母題吃掉一半以上標註，問題在詞彙表或 prompt，不在資料量
 
 **DoD**：母題欄位覆蓋率 > 95%；**隨機抽 20 部人工檢查母題是否合理**（這步不能跳過，垃圾母題會讓後面所有聚合失去意義）。
 
@@ -107,12 +114,15 @@
 
 ### 8/27 四（3.5h）
 
-- [ ] `sql/001`–`003`：建表 ＋ 三個 Materialized View
+- [x] `sql/001`–`003` 已寫好（`mv_motif_pair_stats` 的 arrayJoin 改寫已實測驗證）
 - [ ] `etl/05_load_clickhouse.py`：載入全部資料
-- [ ] **手寫 5 個範例查詢驗證 MV 正確性**（特別是 `mv_motif_pair_stats` 的雙 arrayJoin 改寫）
+- [ ] **手寫 5 個範例查詢驗證 MV 正確性**
+- [ ] **驗證每格樣本數** —— `mv_archetype_performance` 最小格應 ≥ 8，
+      低於門檻的格子應 < 10%
 - [ ] 記錄查詢耗時
 
-**DoD**：能回答「2015 年後同時具備反英雄與導師原型的作品，ROI 中位數與樣本數」，且 < 500ms。
+**DoD**：能回答「2005–2014 同時具備反英雄與導師原型的作品，ROI 中位數與樣本數」，
+且 < 500ms。（原題目寫「2015 年後」，但資料集在 2014 年結束。）
 
 ### ⛔ Kill Criteria
 

@@ -10,11 +10,12 @@
 
 ### 1.1 目標
 
-一個三層 agent 系統：對約 1,500 部可驗證歷史電影（2000 年後、具備完整票房與預算數據、匹配維基摘要）的抽象結構母題做即時多維聚合，產出有歷史類比證據（historical-analogue evidence）支撐的新題材提案，並生成可用於 pitch 的動態分鏡。
+一個三層 agent 系統：對 **1,238 部**可驗證歷史電影（1990–2014、具備完整 USD 票房與預算、匹配 CMU 劇情摘要）的抽象結構母題做即時多維聚合，產出有歷史類比證據（historical-analogue evidence）支撐的新題材提案，並生成可用於 pitch 的動態分鏡。
 
 ### 1.2 Non-goals（明確不做）
 
-- 宣稱覆蓋不可驗證的四萬部語料全集（聚焦於 ~1,500 部具備完整財務與母題數據的高信度子集，避免 credibility gap）
+- 宣稱覆蓋不可驗證的四萬部語料全集（聚焦於 1,238 部具備完整財務與母題數據的高信度子集，避免 credibility gap）
+- 宣稱具備上映期／開片反應的注意力資料（資料上不存在，見 §3.1 與 `docs/M1_DATA_FINDINGS.md`）
 - 做出未經校準的「黑箱票房預測」（定位為歷史類比證據與指標評分：Analogue / Evidence Scoring）
 - 向量檢索、混合查詢、HNSW 索引
 - Veo 影片生成
@@ -76,35 +77,53 @@
 
 ### 3.1 `films`
 
+> **實作檔為 `sql/001_films.sql`，那份才是 source of truth。**
+> `app/prompts.py` 啟動時讀該檔組進 system instruction，本節為說明用摘要，
+> 兩者不一致時以 `sql/` 為準。
+
 ```sql
 CREATE TABLE films
 (
     film_id              String,              -- Wikidata QID，如 'Q25188'
-    enwiki_title         String,              -- 英文維基條目標題，用於 pageviews
-    title                String,
+    enwiki_title         String,              -- 維基條目名，**含消歧義後綴**
+                                              -- （47% 與 title 不同）。pageviews
+                                              -- API 只認這個。
+    title                String,              -- 無後綴標題，CMU join 用這個
     release_year         UInt16,
+    release_bucket       LowCardinality(String), -- '1990-1994' … '2010-2014'
     genres               Array(LowCardinality(String)),
-    budget_usd           Nullable(UInt64),
-    revenue_usd          Nullable(UInt64),
+    budget_usd           Nullable(UInt64),     -- 僅 USD，其餘幣別已剔除
+    revenue_usd          Nullable(UInt64),     -- 全球票房，僅 USD
     roi                  Nullable(Float32) MATERIALIZED
                             if(budget_usd > 0, revenue_usd / budget_usd, NULL),
 
-    -- ETL 階段由 Gemini 產生（見 §4.4）
+    -- ETL 階段由 Gemini 產生（見 §4.4），值域受 `etl/vocab.py` 限制
     motif_tags           Array(LowCardinality(String)),
     act_structure        LowCardinality(String),
     character_archetypes Array(LowCardinality(String)),
     tone_axis            Float32,             -- -1 冷峻 ↔ +1 溫暖
     conflict_scale       LowCardinality(String), -- personal / communal / existential
 
-    -- 注意力特徵（由 film_attention 派生）
-    pageview_peak        Nullable(UInt32),
-    pageview_decay_days  Nullable(UInt16),
+    -- Wikipedia 關注度代理（由 film_attention 派生）
+    -- 量測窗 2015-07 起，全部影片皆在該窗之前上映（延遲 1–25 年，中位數 12）。
+    -- 這裡量到的是長尾查閱度，**不是上映反應**，窗內沒有首映峰值。
+    interest_median_daily Nullable(UInt32),   -- 窗內每日瀏覽中位數（穩健基線）
+    interest_p95_daily    Nullable(UInt32),   -- 尖峰量級
+    interest_trend_slope  Nullable(Float32),  -- 窗內趨勢，>0 為上升
+    interest_cohort_pct   Nullable(Float32),  -- 同 cohort 內百分位 0–1
+                                              -- **唯一可跨年份比較的欄位**
+    years_to_measurement  UInt8,              -- release_year → 2015，1–25
+    attention_kind        LowCardinality(String) DEFAULT 'sustained_interest',
 
     ingested_at          DateTime DEFAULT now()
 )
 ENGINE = MergeTree
-ORDER BY (release_year, film_id);
+ORDER BY (release_bucket, film_id);
 ```
+
+**已移除 `pageview_peak` 與 `pageview_decay_days`。** 沒有上映峰值，
+decay 無從定義；保留這兩個名字會讓 agent 依 DDL 推論出上映反應敘事。
+詳見 `docs/M1_DATA_FINDINGS.md` §1。
 
 ### 3.2 `film_attention`
 
@@ -119,64 +138,83 @@ ENGINE = MergeTree
 ORDER BY (film_id, date);
 ```
 
-規模約 610 萬列（1500 部 × 2015-07 至今約 4070 天）。
+規模約 **504 萬列**（1,238 部 × 2015-07 至今約 4,071 天）。實測 25 部產出
+101,775 列，外推吻合。
 
 ### 3.3 Materialized Views
 
 三個具名 view。**agent 只查這三個 view 與 `films`，不查 `film_attention` 原始表**——把 SQL 難度前移到 schema 設計，是 LLM 產出可執行查詢的關鍵。
 
+> **實作檔為 `sql/003_materialized_views.sql`。** 以下為說明摘要，
+> 每個 view 的預期查詢形狀與典型樣本數寫在該檔註解中。
+
+**分組粒度是這裡最重要的決定。** 1,238 部片的資料集，切太細會讓
+`sample_count` 普遍低於 `MIN_SAMPLE_SIZE`（8），demo 上台時每個查詢都回
+「證據不足」。
+
 ```sql
--- 角色原型組合表現
+-- 角色原型表現。分組用 release_bucket 而非 release_year：
+-- 25 原型 × 25 年 = 625 格，約 3,714 個 (film, archetype) 配對 → 每格 5.9 筆，低於門檻。
+-- 25 原型 × 5 桶 = 125 格 → 每格 29.7 筆。
 CREATE MATERIALIZED VIEW mv_archetype_performance
 ENGINE = AggregatingMergeTree
-ORDER BY (archetype, release_year)
+ORDER BY (archetype, release_bucket)
 AS SELECT
     arrayJoin(character_archetypes) AS archetype,
-    release_year,
-    countState()                    AS sample_count,
-    quantileState(0.5)(roi)         AS roi_median,
-    quantileState(0.75)(roi)        AS roi_p75,
-    avgState(tone_axis)             AS avg_tone
+    release_bucket,
+    countState()                            AS sample_count,
+    quantileState(0.5)(roi)                 AS roi_median,
+    quantileState(0.75)(roi)                AS roi_p75,
+    avgState(tone_axis)                     AS avg_tone,
+    quantileState(0.5)(interest_cohort_pct) AS interest_pct_median
 FROM films
 WHERE roi IS NOT NULL
-GROUP BY archetype, release_year;
+GROUP BY archetype, release_bucket;
 
--- 母題兩兩組合
+-- 母題兩兩組合。原本的雙 arrayJoin 寫法必須改。
 CREATE MATERIALIZED VIEW mv_motif_pair_stats
 ENGINE = AggregatingMergeTree
 ORDER BY (motif_a, motif_b)
 AS SELECT
-    motif_a, motif_b,
-    countState()                       AS sample_count,
-    quantileState(0.5)(roi)            AS roi_median,
-    quantileState(0.5)(pageview_peak)  AS attention_peak_median
+    pair.1 AS motif_a,
+    pair.2 AS motif_b,
+    countState()                            AS sample_count,
+    quantileState(0.5)(roi)                 AS roi_median,
+    quantileState(0.5)(interest_cohort_pct) AS interest_pct_median
 FROM (
-    SELECT
-        arrayJoin(motif_tags) AS motif_a,
-        arrayJoin(motif_tags) AS motif_b,
-        roi, pageview_peak
-    FROM films
-    WHERE roi IS NOT NULL
+    SELECT roi, interest_cohort_pct,
+        arrayJoin(arrayFilter(p -> p.1 < p.2,
+            arrayFlatten(arrayMap(a -> arrayMap(b -> (a, b), motif_tags),
+                                  motif_tags)))) AS pair
+    FROM films WHERE roi IS NOT NULL
 )
-WHERE motif_a < motif_b
 GROUP BY motif_a, motif_b;
 
--- 維基頁面關注度代理特徵（Wikipedia page-interest proxy）
--- 註：2015-07 之後上映的電影具備上映期注意力峰值與衰減特徵；
--- 2015 年前上映之電影則作為 2015 至今的長尾/持續關注度代理指標（sustained interest proxy）。
-CREATE MATERIALIZED VIEW mv_attention_curve
+-- 每片的關注度軌跡，按日曆年。取代 mv_attention_curve。
+CREATE MATERIALIZED VIEW mv_interest_by_year
 ENGINE = AggregatingMergeTree
-ORDER BY (film_id, days_since_peak)
+ORDER BY (film_id, calendar_year)
 AS SELECT
     film_id,
-    dateDiff('day', peak_date, date) AS days_since_peak,
-    sumState(views)                  AS views
+    toYear(date)    AS calendar_year,
+    sumState(views) AS total_views,
+    avgState(views) AS avg_daily_views
 FROM film_attention
--- peak_date 於 ETL 階段預先計算並寫入輔助表
-GROUP BY film_id, days_since_peak;
+GROUP BY film_id, calendar_year;
 ```
 
-> 註：`mv_motif_pair_stats` 的雙重 `arrayJoin` 在 ClickHouse 中會產生笛卡兒積，實作時需以 `arrayJoin(arrayMap(...))` 或先物化 pair 陣列的方式改寫。8/27 的驗證步驟必須實測此 view 的正確性。
+**`mv_attention_curve` 已刪除。** 它以 `days_since_peak` 排序，但本資料集沒有
+首映峰值可作為原點——窗內出現的最大值通常是無關的新聞事件。改用日曆年，
+回答「2015 至今這部片的查閱度如何變化」，那才是資料支持得起的問題。
+
+> 註：原本擔心雙重 `arrayJoin` 產生笛卡兒積。**實測（ClickHouse 26.2）結果更糟**：
+> 同一陣列上的兩個 `arrayJoin` 會以同一索引對齊（zip），
+> `['revenge','redemption','survival']` 只產生 3 列自我配對
+> `(revenge, revenge)`、`(redemption, redemption)`、`(survival, survival)`，
+> 不是 9 列。接著的 `WHERE motif_a < motif_b` 把它們全部濾掉，
+> **view 會靜默地是空的，不會報任何錯**。
+> 已改為單次 `arrayJoin` 搭配 `arrayFlatten(arrayMap(...))` 產生 pair 陣列，
+> 實測 3 個母題正確產出 C(3,2)=3 個配對。
 
 ### 3.4 供 LLM 使用的 schema 說明
 
@@ -198,7 +236,8 @@ Wikidata 作為主幹（提供 QID、票房、預算、類型、以及 enwiki �
 - **必須依年份分批查詢**，單次全量查詢會 timeout
 - 授權：CC0
 
-**輸出**：`films_spine.parquet`，預期 5000–15000 列
+**輸出**：`films_spine.parquet`。原估 5000–15000 列偏高：實測 1990–2014 僅要求票房為 2,157 部，
+加上預算條件為 **1,595 部**。
 
 ### 4.2 `02_cmu_join.py`
 
@@ -208,21 +247,38 @@ CMU Movie Summary Corpus 提供劇情文本。
 - 下載 `MovieSummaries.tar.gz`，使用 `plot_summaries.txt` 與 `movie.metadata.tsv`
 - **Join 風險**：CMU 用 Wikipedia page ID 與 Freebase ID，與 Wikidata QID 無直接對應。實務作法為正規化標題（小寫、去標點、去 "The"）＋ 上映年份 ±1 的模糊比對
 - 預期匹配率 70–85%
-- **Gate**：成功匹配且有票房資料者 ≥ 1500 部才可進入下一步。若不足，放寬年份至 1990 後
+- **Gate（已依實測調整）**：原訂 ≥ 1500 部。年份下界已放寬至 1990（規格允許的降級路徑），
+  實得 **1,238 部**，為本資料集的實際上限——CMU 語料在 2012 年結束，再放寬年份也補不回來
 
 **輸出**：`films_with_plots.parquet`
 
 ### 4.3 `03_pageviews.py`
 
 - Endpoint: `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/{title}/daily/{start}/{end}`
-- **每個條目一次呼叫即回傳完整日期區間**，故 1500 部片僅需約 1500 次呼叫
-- 起始日期 20150701（API 資料起點），終止為今日（約 4,070 天）
-- **指標定義**：改稱 **Wikipedia page-interest proxy**。2015 年前上映之電影不能宣稱具備「上映後 90 天」關注度特徵，而係作為 2015 至今的持續關注度代理指標；2015-07 後上映之電影則具備真實上映期關注度曲線
-- 加入 rate limit（每秒 ≤ 5 次）與失敗重試
-- 計算 `pageview_peak` 與 `pageview_decay_days` 寫回 films
+- **每個條目一次呼叫即回傳完整日期區間**，故 1,238 部片僅需約 1,238 次呼叫
+- 條目名用 `enwiki_title`（含消歧義後綴），**不是 `title`**。用錯會全部 404
+- 起始日期 20150701（API 資料起點），終止為今日（約 4,071 天）
+- 加入 rate limit（每秒 ≤ 5 次）與失敗重試；404 視為正常結果不中斷
 - 授權：CC0 / Wikimedia API 使用條款
 
-**輸出**：`attention.parquet`（約 610 萬列）
+**指標定義**：全部影片皆在量測窗之前上映（延遲 1–25 年，中位數 12），
+故窗內**沒有**上映峰值，也沒有可定義的 decay 原點。寫回 films 的是：
+
+| 欄位 | 意義 |
+|---|---|
+| `interest_median_daily` | 窗內每日瀏覽中位數。用中位數而非平均，因為單一新聞事件（演員過世、重拍宣布）會造成數量級的尖峰 |
+| `interest_p95_daily` | 尖峰量級 |
+| `interest_trend_slope` | 窗內趨勢，以中位數正規化後的年變化率 |
+| `interest_cohort_pct` | 同 5 年 cohort 內百分位。**唯一可跨年份比較的欄位** |
+| `years_to_measurement` | 上映到量測起點的年數，1–25 |
+
+`interest_cohort_pct` 必須在全部影片抓完後統一計算——百分位需要整個 cohort 的分布。
+
+> **為什麼一定要正規化**：實測 25 部樣本，`interest_median_daily` 與量測延遲
+> 相關係數 +0.272，`interest_cohort_pct` 為 −0.039。直接拿原始瀏覽量比較
+> 1990 年與 2014 年的片，比的是量測延遲差 24 年的兩個東西。
+
+**輸出**：`attention.parquet`（約 504 萬列）、`films_enriched.parquet`
 
 ### 4.4 `04_motif_enrichment.py`
 
@@ -242,7 +298,7 @@ class FilmMotifs(BaseModel):
 - 使用 `response_mime_type="application/json"` ＋ `response_schema`
 - 併發 10，含指數退避重試
 - **只輸出抽象母題，不輸出劇情原文、對白或情節序列**
-- 成本估算：1500 次 Flash 呼叫 ≈ $1–3
+- 成本估算：1,238 次 Flash 呼叫 ≈ $1–3
 
 **輸出**：`motifs.parquet`
 
@@ -419,7 +475,24 @@ type Event =
 
 ### 6.3 狀態管理
 
-單一 Cloud Run 執行個體，記憶體內 dict 保存 `run_id → state`。不使用 Firestore、不做持久化。實例重啟即失效，這對 demo 是可接受的。
+實作於 `app/state.py`（`RunStore` ＋ `RunState` 狀態機）與 `app/events.py`（`EventBus`）。
+
+`running → awaiting_approval → storyboard → done`（另有 `error`）。
+非法轉移會拋 `InvalidTransition`，所以亂序的 `/approve` 無法跳過閘門或復活已結束的 run。
+
+**核准閘門是狀態轉移，不是 agent 內的 await。** agent 跑完就停，
+由 FastAPI 層在收到 `POST /approve/{run_id}` 後推進狀態。
+若讓 agent `await` 使用者點擊，該回合會一直開著、run 的存活綁在單一 HTTP 連線上，
+而且「使用者到底核准了沒」只能從那個 stack frame 得知。
+
+**SSE 不從 agent 內部 yield。** agent publish 到 bus，HTTP 層 subscribe。
+如此 agent 可在無人觀看時執行，兩個瀏覽器可同時接同一個 run，
+日後換 Redis pub/sub 只需替換 `EventBus` 實作。
+
+> ⚠️ **部署硬性條件：單一實例。** `InProcessEventBus` 與 `RunStore` 都活在單一行程記憶體中。
+> Cloud Run 若自動擴展到 2 個實例，SSE 訂閱者與 run 狀態會落在不同實例，
+> **串流會靜默掛住——不報錯、不斷線、什麼都不吐**。
+> 部署指令必須帶 `--min-instances=1 --max-instances=1`。
 
 ---
 
