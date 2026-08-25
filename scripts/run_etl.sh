@@ -23,4 +23,6 @@ export PATH="${HOME}/.local/bin:${PATH}"
 env -u PYTHONPATH -u PYTHONHOME -u CONDA_PREFIX -u CONDA_DEFAULT_ENV \
   uv run --python 3.13 \
     --with pandas --with pyarrow --with requests \
+    --with google-genai --with pydantic \
+    --with pytest \
     "$@"

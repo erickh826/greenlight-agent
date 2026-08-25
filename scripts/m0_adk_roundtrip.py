@@ -35,33 +35,10 @@ sys.path.insert(0, str(ROOT))
 # The toolset used to be built here. It now comes from the same factory the
 # application uses, so this evidence script exercises the real runtime path
 # rather than a parallel copy of it that could drift.
+from app.env import load_env, redact  # noqa: E402
 from app.mcp import build_clickhouse_tools  # noqa: E402
 
 TRACE_PATH = ROOT / "docs" / "m0-mcp-trace.log"
-
-# The connection host is treated as a secret (spec 8.2 scans history for it).
-SECRET_ENV = ("CLICKHOUSE_HOST", "CLICKHOUSE_PASSWORD")
-
-
-def load_env() -> None:
-    env_file = ROOT / ".env"
-    if not env_file.exists():
-        sys.exit("ERROR: .env not found. Copy .env.example and fill it in.")
-    for line in env_file.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip())
-
-
-def redact(text: str) -> str:
-    """Strip credentials so the committed trace carries no secrets."""
-    for name in SECRET_ENV:
-        value = os.environ.get(name)
-        if value:
-            text = text.replace(value, f"<{name}>")
-    return text
 
 
 class Trace:
