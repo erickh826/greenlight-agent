@@ -125,24 +125,34 @@ def main() -> int:
               f"{have.sum()}/{len(en)} ({have.mean():.0%})")
 
         e = en[have]
-        # The whole point of the percentile: raw counts track how long ago the
-        # film came out, the percentile should not. If this correlation is not
-        # near zero, the normalisation is not doing its job and attention_score
-        # is comparing films by age instead of by standing.
+        # Measured, not assumed. The design brief said raw counts would track
+        # how long ago a film came out, so the percentile had to remove that.
+        # At full scale it does not: r = -0.009 raw. The +0.272 that motivated
+        # the column came from a 25-film head() slice, which is not a random
+        # sample. Both numbers are printed so the claim stays checkable.
         raw_r = np.corrcoef(e["years_to_measurement"],
                             e["interest_median_daily"])[0, 1]
         pct_r = np.corrcoef(e["years_to_measurement"],
                             e["interest_cohort_pct"])[0, 1]
-        check(abs(pct_r) < 0.10, "cohort 百分位已消除量測延遲的相關性",
-              f"原始 r={raw_r:+.3f} → 正規化後 r={pct_r:+.3f}")
+        check(abs(pct_r) < 0.10, "關注度與量測延遲無關（正規化後）",
+              f"原始 r={raw_r:+.3f}，cohort 百分位 r={pct_r:+.3f}"
+              + ("（原始已無相關 — 見 docs/M1_DATA_FINDINGS.md §1）"
+                 if abs(raw_r) < 0.10 else ""))
 
-        spread_ok = all(
-            0.3 < g["interest_cohort_pct"].median() < 0.7
+        # A real check, unlike the median-near-0.5 one it replaces: rank(pct=True)
+        # forces that median to 0.50 by construction, so it could never fail.
+        # This asks whether the percentile still *ranks* correctly -- a broken
+        # groupby or a misaligned merge (--repair rewrites this column) would
+        # scramble the mapping while leaving the distribution perfectly uniform.
+        # Spearman by hand: rank both, then Pearson. pandas delegates
+        # method="spearman" to scipy, and scipy is not worth a dependency here.
+        worst = min(
+            g["interest_cohort_pct"].rank().corr(
+                g["interest_median_daily"].rank())
             for _, g in e.groupby("release_bucket") if len(g) >= 10
         )
-        check(spread_ok, "每個 cohort 內百分位中位數接近 0.5",
-              "; ".join(f"{b}={g['interest_cohort_pct'].median():.2f}"
-                        for b, g in e.groupby("release_bucket")))
+        check(worst > 0.999, "百分位在每個 cohort 內與原始值同序",
+              f"最差 cohort 的 Spearman = {worst:.4f}（應為 1.0000）")
     else:
         print(f"\nH. 關注度欄位 — 跳過（尚無 {ENRICHED.name}，"
               f"跑 etl/03_pageviews.py 後才有）")

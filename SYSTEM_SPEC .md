@@ -268,15 +268,24 @@ CMU Movie Summary Corpus 提供劇情文本。
 |---|---|
 | `interest_median_daily` | 窗內每日瀏覽中位數。用中位數而非平均，因為單一新聞事件（演員過世、重拍宣布）會造成數量級的尖峰 |
 | `interest_p95_daily` | 尖峰量級 |
-| `interest_trend_slope` | 窗內趨勢，以中位數正規化後的年變化率 |
-| `interest_cohort_pct` | 同 5 年 cohort 內百分位。**唯一可跨年份比較的欄位** |
+| `interest_trend_slope` | 窗內趨勢，以中位數正規化後的年變化率。**條目改名會截斷窗口（56 部，4.5%），該欄位對此敏感**——見 `docs/M1_DATA_FINDINGS.md` §6.2 |
+| `interest_cohort_pct` | 同 5 年 cohort 內百分位。有界 0–1，是 `attention_score` 唯一的輸入 |
 | `years_to_measurement` | 上映到量測起點的年數，1–25 |
 
 `interest_cohort_pct` 必須在全部影片抓完後統一計算——百分位需要整個 cohort 的分布。
 
-> **為什麼一定要正規化**：實測 25 部樣本，`interest_median_daily` 與量測延遲
-> 相關係數 +0.272，`interest_cohort_pct` 為 −0.039。直接拿原始瀏覽量比較
-> 1990 年與 2014 年的片，比的是量測延遲差 24 年的兩個東西。
+> **為什麼要正規化（理由已修正）**：原本寫的是「量測延遲是混淆因子」，依據是
+> 25 部 smoke test（原始 r = +0.272）。全量 1,238 部實測 **r = −0.009**，
+> 各 cohort 關注度中位數 637/755/843/646/883 非單調、全距僅 1.4 倍，而 cohort
+> **內部**跨 13–40 倍。延遲不是混淆因子；那 25 部是 `head()` 的非隨機切片。
+>
+> 保留此欄位的理由改為**尺度正規化**：原始日均值在單一 cohort 內就跨 13–40 倍，
+> 要映射到 0–100 分必須任意選定縮放常數，百分位則天然有界。
+> 完整量測見 `docs/M1_DATA_FINDINGS.md` §1。
+
+> **量測下限**：71 部片的原始日均中位數 < 50，其中 9 部 < 5。這些片算出的
+> `interest_cohort_pct`（如 0.003）看似精確，底下只有雜訊。`attention_score`
+> 應將其視為無資料而非低分——M2 待辦，見 §6.3。
 
 **輸出**：`attention.parquet`（約 504 萬列）、`films_enriched.parquet`
 

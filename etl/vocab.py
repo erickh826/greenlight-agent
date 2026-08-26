@@ -112,11 +112,16 @@ CONFLICT_SCALES: Final[tuple[str, ...]] = (
 #   1. mv_archetype_performance groups by it. Grouping by single year over 1,238
 #      films leaves ~5.9 samples per (archetype, year) cell, under the
 #      insufficient_evidence floor of 8; five-year buckets give ~29.7.
-#   2. interest_cohort_pct is a percentile *within* a bucket. Pageviews start
-#      2015-07 while the films span 1990-2014, so a 2014 release was measured
-#      one year after opening and a 1990 release twenty-five years after. Raw
-#      view counts are not comparable across that gap; a percentile within a
-#      cohort of similarly-aged films is.
+#   2. interest_cohort_pct is a percentile *within* a bucket. This was designed
+#      to remove a measurement-lag confound -- pageviews start 2015-07 while the
+#      films span 1990-2014, so a 2014 release was measured one year after
+#      opening and a 1990 release twenty-five years after. Measured over all
+#      1,238 films, that confound is not there: lag against raw daily median is
+#      r = -0.009, and cohort medians run 636/755/842/646/883, non-monotonic and
+#      spanning 1.4x where within-cohort spread is 13-40x. Film-level popularity
+#      swamps the lag. So the percentile earns its place as a bounded 0-1 scale
+#      for attention_score, not as a lag correction. See
+#      docs/M1_DATA_FINDINGS.md §1.
 #   3. The system instruction describes eras to the agent in these terms.
 RELEASE_BUCKETS: Final[tuple[str, ...]] = (
     "1990-1994",

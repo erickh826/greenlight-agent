@@ -63,10 +63,14 @@ begins 2015-07-01, which is between 1 and 25 years after each film opened
 Never describe them as opening reaction, buzz at launch, or decay from a
 premiere.
 
-Only `interest_cohort_pct` is comparable across release years -- it is a
-percentile within a five-year release cohort. Comparing raw
-`interest_median_daily` between a 1990 film and a 2014 film compares two
-different measurement lags."""
+Use `interest_cohort_pct` for any comparison between films. It is a percentile
+within a five-year release cohort, so it is bounded 0-1 and unit-free.
+`interest_median_daily` is a raw daily count spanning roughly 13-40x within a
+single cohort, so a difference in it says more about how famous a film is than
+about anything a comparison would be trying to establish.
+
+Release year is not a confound here, and do not present it as one: measured over
+all 1,238 films, measurement lag against raw daily median is r = -0.009."""
 
 
 QUERY_GUIDANCE = f"""QUERYING

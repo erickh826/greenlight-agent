@@ -71,6 +71,25 @@ MAX_PLOT_CHARS = 8000
 CONCURRENCY = 10
 MAX_RETRIES = 5
 
+# Thinking is off, and the reason is reproducibility rather than cost.
+#
+# Measured over 12 films, two runs at this exact config agree at Jaccard 0.84 on
+# motif_tags and 12/12 on both act_structure and conflict_scale. Thinking on
+# versus off agrees at only 0.55 and 6/12. So thinking is not extra care on the
+# same answer -- it is a different labelling policy, and the single-valued
+# fields flip half the time between them.
+#
+# That makes a mid-run switch the real hazard: half the corpus labelled under
+# one policy and half under the other would put a systematic ~45% disagreement
+# seam through every GROUP BY, invisibly. Whichever policy is chosen, the whole
+# corpus must be labelled under it, so changing this constant means discarding
+# data/motifs.jsonl and relabelling from scratch.
+#
+# Off was chosen because it is 4-7x faster and cheaper at equal stability, and
+# on the sample it was not worse: it read Hoop Dreams as ensemble_parallel
+# (the film does follow two boys in parallel) where thinking said hero_journey.
+THINKING_BUDGET = 0
+
 SYSTEM_INSTRUCTION = f"""\
 You label films with abstract narrative structure for a research database.
 
@@ -154,6 +173,8 @@ def extract(client, model: str, title: str, year: int, plot: str) -> FilmMotifs:
                     # Labelling is a classification task; sampling variance here
                     # shows up downstream as noise in every aggregate.
                     temperature=0.2,
+                    thinking_config=types.ThinkingConfig(
+                        thinking_budget=THINKING_BUDGET),
                 ),
             )
             return FilmMotifs.model_validate_json(response.text)

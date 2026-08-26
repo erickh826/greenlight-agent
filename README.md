@@ -19,17 +19,22 @@ A three-layer agent system that aggregates abstract structural motifs across a p
   a property of the source corpus rather than a filter: the CMU Movie Summary
   Corpus was published in 2013 and holds 70 films from 2013, 4 from 2014, and
   none after.
-- **Attention data (`film_attention`)**: ~5.04 million rows of daily pageviews
-  from the Wikimedia Pageviews API (2015-07-01 to present, ~4,071 days per
-  article).
+- **Attention data (`film_attention`)**: **4,937,204 rows** of daily pageviews
+  from the Wikimedia Pageviews API (2015-07-01 to present, up to 4,074 days per
+  article), covering 1,238 of 1,238 films.
 - **What the attention data measures.** The pageviews API begins in July 2015,
   which is 1 to 25 years after each film in this dataset opened (median 12). So
   these columns describe *cultural persistence* — how much a film was still
   being looked up years later — and not opening-weekend reaction. There is no
-  release peak in this window and nothing decays from a premiere. Only
-  `interest_cohort_pct`, a percentile within a five-year release cohort, is
-  comparable across release years; raw view counts are not, because a 2014 film
-  and a 1990 film were measured 24 years apart.
+  release peak in this window and nothing decays from a premiere.
+- **A correction we are keeping visible.** The design assumed that lag would
+  make raw counts incomparable across release years, and a 25-film sample
+  appeared to confirm it (r = +0.272). Over all 1,238 films it is **r = −0.009**:
+  how popular a film is swamps how long ago it came out, and the 25-film sample
+  was a non-random slice. `interest_cohort_pct` is therefore a scale
+  normalisation giving `attention_score` a bounded 0–1 input — not a lag
+  correction. The full measurement is in
+  [docs/M1_DATA_FINDINGS.md](docs/M1_DATA_FINDINGS.md) §1.
 
 ## Data Governance & Attribution
 
