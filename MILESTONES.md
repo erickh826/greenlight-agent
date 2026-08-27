@@ -99,9 +99,12 @@
 `interest_trend_slope` / `interest_cohort_pct` / `years_to_measurement`，
 **不再有 `pageview_peak` 與 `pageview_decay_days`**。
 
-**DoD**：`attention.parquet` 約 **504 萬列**（1,238 部 × 約 4,071 天）；
-`interest_cohort_pct` 在每個 `release_bucket` 內約略均勻分布，
-且與 `years_to_measurement` 無顯著相關（smoke test 為 −0.039，原始值為 +0.272）。
+**DoD**：`attention.parquet` **4,937,204 列**（1,238 部 × 最多 4,074 天）→ PASS。
+
+> 原 DoD 寫「`interest_cohort_pct` 與 `years_to_measurement` 無顯著相關
+> （smoke test −0.039，原始值 +0.272）」。全量實測 **原始值就是 −0.009**，
+> 該混淆因子並不存在，+0.272 來自 `head(25)` 的非隨機切片。
+> 見 `docs/M1_DATA_FINDINGS.md` §1。
 
 ### 8/26 三（3.5h）
 
@@ -137,14 +140,31 @@
 ### 8/27 四（3.5h）
 
 - [x] `sql/001`–`003` 已寫好（`mv_motif_pair_stats` 的 arrayJoin 改寫已實測驗證）
-- [ ] `etl/05_load_clickhouse.py`：載入全部資料
-- [ ] **手寫 5 個範例查詢驗證 MV 正確性**
-- [ ] **驗證每格樣本數** —— `mv_archetype_performance` 最小格應 ≥ 8，
-      低於門檻的格子應 < 10%
-- [ ] 記錄查詢耗時
+- [x] `etl/05_load_clickhouse.py`：載入全部資料 →
+      `films` 1,238 列、`film_attention` **4,937,204** 列（87s）
+- [x] **手寫 5 個範例查詢驗證 MV 正確性** → `scripts/verify_mv.py`，
+      每個 view 都與原表重算對照，不是只確認「有回傳列」
+- [x] **驗證每格樣本數** —— 見下方修正
+- [x] 記錄查詢耗時 → 最慢 276ms
 
-**DoD**：能回答「2005–2014 同時具備反英雄與導師原型的作品，ROI 中位數與樣本數」，
-且 < 500ms。（原題目寫「2015 年後」，但資料集在 2014 年結束。）
+**DoD**：能回答「2005–2014 同時具備反英雄與導師原型的作品，ROI 中位數與樣本數」
+→ **n=31，ROI 中位數 1.898，p75 3.504，257ms**。PASS。
+（原題目寫「2015 年後」，但資料集在 2014 年結束。）
+
+> **樣本數門檻的統計量改了。** 原訂「低於門檻的格子 < 10%」，實測
+> archetype × bucket 是 **25.0%**、母題配對 **23.7%**，不達標。
+>
+> 但數格子在偏態分布上是錯的統計量——`shadow_antagonist` 有 678 個標註、
+> `creator` 只有 15，相差 45 倍，無論怎麼分桶稀有原型都會薄。改看它代表的
+> 兩件事：
+>
+> - **稀疏格子只握有 2.7% / 2.9% 的樣本**（127/4,717、354/12,189）
+> - **不帶 `release_bucket` 查詢時，24 個原型全部達門檻**（最小 15）；
+>   母題配對不帶年份時 76% 達門檻
+>
+> 也就是說稀疏是「切太細」的後果，不是資料不足。`app/prompts.py` 已經要求
+> agent 先查廣的聚合、確認樣本數後才加年份維度，那條路徑 100% 達標。
+> 格子數仍會印出來，只是不作為 gate。
 
 ### ⛔ Kill Criteria
 

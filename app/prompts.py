@@ -85,6 +85,16 @@ The views are AggregatingMergeTree. Read -State columns through the matching
     WHERE archetype = 'antihero'
     GROUP BY archetype
 
+A -Merge function must be resolved in its own GROUP BY before anything
+aggregates over it. Wrapping one directly in another aggregate fails with
+ILLEGAL_AGGREGATION; put it in a subquery:
+
+    SELECT sum(n) FROM (
+        SELECT countMerge(sample_count) AS n
+        FROM mv_archetype_performance
+        GROUP BY archetype, release_bucket
+    )
+
 Array membership uses has():
 
     SELECT count() FROM films WHERE has(motif_tags, 'revenge')
