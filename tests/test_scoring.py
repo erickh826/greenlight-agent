@@ -10,6 +10,7 @@ vocabulary still produces valid-looking tags that simply never match a row.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -20,9 +21,12 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "etl"))
 
 from app import scoring  # noqa: E402
-from app.config import MIN_SAMPLE_SIZE, SCORING_WEIGHTS  # noqa: E402
+from app.config import (  # noqa: E402
+    MIN_INTEREST_SIGNAL, MIN_SAMPLE_SIZE, SCORING_WEIGHTS)  # noqa: E402
 from app.contracts import Archetype, EvidenceItem, Motif  # noqa: E402
-from vocab import ARCHETYPES, MOTIFS, release_bucket, years_to_measurement  # noqa: E402
+from vocab import (  # noqa: E402
+    ARCHETYPES, KNOWN_VOCAB_OVERLAP, MOTIFS, release_bucket,
+    years_to_measurement)
 
 
 def ev(value: float, n: int = 30) -> EvidenceItem:
@@ -64,8 +68,64 @@ def test_thin_evidence_is_discarded():
 def test_all_thin_evidence_yields_insufficient_not_zero():
     """Nothing above the floor must not quietly become a score of 0."""
     thin = [ev(9.9, n=1)]
-    _, _, _, confidence, _ = scoring.score_from_evidence(thin, thin)
+    c, a, comp, confidence, _ = scoring.score_from_evidence(thin, thin)
     assert confidence == "insufficient_evidence"
+    assert (c, a, comp) == (None, None, None)
+
+
+# --- a missing dimension is N/A, not zero -----------------------------------
+# The bug this guards: attention used to come back as 0.0 when nothing was
+# found, and 0.0 * 0.4 still subtracted 40 points of composite. The caveat said
+# "0, not low" while the arithmetic said low.
+
+def test_missing_attention_does_not_penalise_composite():
+    c, a, comp, _, _ = scoring.score_from_evidence([ev(2.4)], [])
+    assert a is None
+    assert comp == pytest.approx(c), "composite must be the commercial score alone"
+
+
+def test_missing_commercial_does_not_penalise_composite():
+    c, a, comp, _, _ = scoring.score_from_evidence([], [ev(0.8)])
+    assert c is None
+    assert comp == pytest.approx(a), "composite must be the attention score alone"
+
+
+def test_missing_dimension_beats_a_zero_scoring_one():
+    """A film with no interest evidence must not rank below a genuinely bad one."""
+    _, _, absent, _, _ = scoring.score_from_evidence([ev(2.4)], [])
+    _, _, worst, _, _ = scoring.score_from_evidence([ev(2.4)], [ev(0.0)])
+    assert absent > worst
+
+
+def test_low_signal_absence_is_stated_in_caveats():
+    _, _, _, _, caveats = scoring.score_from_evidence([ev(2.4)], [])
+    joined = " ".join(caveats).lower()
+    assert "n/a" in joined and "not low" in joined
+    assert str(MIN_INTEREST_SIGNAL) in " ".join(caveats)
+
+
+def test_single_dimension_caps_confidence_at_medium():
+    """Six ROI items is 'high' normally; with no attention it must not be."""
+    roi = [ev(2.0, n=30) for _ in range(6)]
+    _, _, _, confidence, _ = scoring.score_from_evidence(roi, [])
+    assert confidence == "medium"
+
+
+def test_composite_none_only_when_both_absent():
+    assert scoring.compute_composite(None, None) is None
+    assert scoring.compute_composite(50.0, None) == pytest.approx(50.0)
+    assert scoring.compute_composite(None, 50.0) == pytest.approx(50.0)
+
+
+# --- the interest floor is one number, written in two places ----------------
+
+def test_ddl_interest_floor_matches_config():
+    """sql/001 hardcodes the threshold; a drift here silently changes scoring."""
+    ddl = (ROOT / "sql" / "001_films.sql").read_text()
+    match = re.search(r"has_interest_signal\s+UInt8\s+MATERIALIZED\s+"
+                      r"interest_median_daily\s*>=\s*(\d+)", ddl)
+    assert match, "has_interest_signal not found in sql/001_films.sql"
+    assert int(match.group(1)) == MIN_INTEREST_SIGNAL
 
 
 def test_outlier_roi_is_capped_not_unbounded():
@@ -90,6 +150,18 @@ def test_contract_enums_come_from_vocab():
 def test_vocab_sizes_match_spec():
     assert len(MOTIFS) == 30
     assert len(ARCHETYPES) == 25
+
+
+def test_no_new_overlap_between_motifs_and_archetypes():
+    """A term on both lists means the same thing twice in a joint aggregate.
+
+    'reluctant_hero' is a known, accepted P1 -- it is a person, so it does not
+    belong in MOTIFS, but removing it costs a full relabelling run. Pinning the
+    set here keeps that visible while failing on any newly introduced overlap.
+    """
+    overlap = set(MOTIFS) & set(ARCHETYPES)
+    assert overlap == set(KNOWN_VOCAB_OVERLAP), (
+        f"vocabulary overlap changed: {overlap ^ set(KNOWN_VOCAB_OVERLAP)}")
 
 
 @pytest.mark.parametrize("year,bucket,lag", [

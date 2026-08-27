@@ -23,6 +23,20 @@ SCORING_WEIGHTS: Final[dict[str, float]] = {
 # against -- see sql/003_materialized_views.sql.
 MIN_SAMPLE_SIZE: Final[int] = 8
 
+# Daily-views floor below which a film's interest_cohort_pct is a precise-looking
+# ranking of noise. 71 of 1,238 films sit under it and 9 under 5 views/day; at
+# one view a day, the percentile comes out as 0.003, which reads as a confident
+# "bottom of its cohort" measurement rather than the absence of one.
+#
+# The raw columns keep these films -- the data is not wrong, it is just below
+# resolution. What changes is that sql/001 marks them with has_interest_signal
+# and sql/003 excludes them from the interest aggregates, so they are absent
+# from the evidence rather than dragging a median down.
+#
+# Changing this means rebuilding the materialized views: the DDL carries the
+# same number, and tests/test_scoring.py asserts the two still agree.
+MIN_INTEREST_SIGNAL: Final[int] = 50
+
 # --- Generation shape -------------------------------------------------------
 SCENE_COUNT: Final[int] = 3
 PROPOSAL_VARIANTS: Final[tuple[str, str]] = ("grounded", "wildcard")
@@ -53,6 +67,6 @@ assert composite_weights_sum_to_one(), (
 
 __all__ = [
     "SCORING_WEIGHTS", "MIN_SAMPLE_SIZE", "SCENE_COUNT", "PROPOSAL_VARIANTS",
-    "WILDCARD_TEMPERATURE", "SQL_RETRY_LIMIT", "QUERY_TIMEOUT_SEC",
+    "MIN_INTEREST_SIGNAL", "WILDCARD_TEMPERATURE", "SQL_RETRY_LIMIT", "QUERY_TIMEOUT_SEC",
     "RUN_TIMEOUT_SEC",
 ]

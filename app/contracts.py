@@ -94,18 +94,30 @@ class PredictionScore(BaseModel):
     is recomputed on the way out rather than trusted from the model, because
     "the score is explainable" only means something if the arithmetic is
     reproducible from the listed evidence.
+
+    All three scores are nullable, and the distinction is load-bearing: None is
+    "we found nothing to compare against", 0.0 is "the comparables were as bad
+    as anything in the dataset". Folding the first into the second is a silent
+    penalty for missing data -- see app/scoring.compute_composite.
     """
 
     proposal_title: str
-    commercial_score: float = Field(ge=0, le=100,
-                                    description="From the ROI distribution of "
-                                                "historical analogues")
-    attention_score: float = Field(
-        ge=0, le=100,
-        description="From interest_cohort_pct of historical analogues. This is "
-                    "sustained post-2015 lookup interest, not opening-weekend "
-                    "attention -- no film in the dataset has the latter.")
-    composite: float = Field(ge=0, le=100)
+    commercial_score: float | None = Field(
+        default=None, ge=0, le=100,
+        description="From the ROI distribution of historical analogues. None "
+                    "means no comparable set met the sample floor -- N/A, not "
+                    "a low result.")
+    attention_score: float | None = Field(
+        default=None, ge=0, le=100,
+        description="From interest_cohort_pct of historical analogues, over "
+                    "films above the measurement floor only. This is sustained "
+                    "post-2015 lookup interest, not opening-weekend attention "
+                    "-- no film in the dataset has the latter. None means N/A, "
+                    "not low interest.")
+    composite: float | None = Field(
+        default=None, ge=0, le=100,
+        description="Weighted blend of whichever sub-scores exist, with the "
+                    "remaining weights renormalised. None when neither does.")
     confidence: Literal["high", "medium", "low", "insufficient_evidence"]
     evidence: list[EvidenceItem]
     caveats: list[str] = Field(

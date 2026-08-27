@@ -15,7 +15,7 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
-from app.config import MIN_SAMPLE_SIZE
+from app.config import MIN_INTEREST_SIGNAL, MIN_SAMPLE_SIZE
 
 ROOT = Path(__file__).resolve().parent.parent
 SQL_DIR = ROOT / "sql"
@@ -103,7 +103,29 @@ insufficient_evidence instead of a figure:
 Order of narrowing matters on a dataset this size. Query the broad aggregate
 first, check the count, and only add a release_bucket or budget filter if what
 came back can afford to be split. Filtering first is how a query that had
-30 samples returns 2."""
+30 samples returns 2.
+
+The two counts are not interchangeable. `sample_count` covers the ROI figures;
+`interest_sample_count` covers the interest figures, which are aggregated only
+over films above the measurement floor ({MIN_INTEREST_SIGNAL} daily views).
+It is the smaller of the two. When you report an interest figure, its
+sample_count must be `interest_sample_count`:
+
+    SELECT archetype,
+           countMerge(sample_count)                     AS n_roi,
+           countMerge(interest_sample_count)            AS n_interest,
+           quantileMerge(0.5)(roi_median)               AS roi_median,
+           quantileMerge(0.5)(interest_pct_median)      AS interest_median
+    FROM mv_archetype_performance
+    WHERE archetype = 'antihero'
+    GROUP BY archetype
+
+If `n_interest` is below {MIN_SAMPLE_SIZE} while `n_roi` is not, report the ROI
+figure and omit the interest one. Do not report an attention score of zero: a
+missing figure is N/A, and scoring drops the dimension and reweights rather than
+counting the absence against the proposal. Querying `films` directly for
+interest requires `WHERE has_interest_signal` yourself; the views apply it for
+you."""
 
 
 def analyst_system_instruction() -> str:

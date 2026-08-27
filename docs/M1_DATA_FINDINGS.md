@@ -300,3 +300,44 @@ Pageviews API 按條目名計算，條目改名後舊名的歷史不會跟著搬
 
 在 prompt 裡錨定七個具名刻度後，全量 1,210 部的端點比例降到 **0.5%**，
 出現 9 個相異值，分布 −0.6 以下 1.9% / 中段 55.2% / +0.6 以上 7.3%。
+
+### 6.6 `reluctant_hero` 跨在兩個詞彙表上（P1，人工抽查發現）
+
+20 部人工抽查通過，但發現 `reluctant_hero` 同時列在 `MOTIFS` 與 `ARCHETYPES`。
+實測 1,210 部：當母題 82 次、當原型 521 次，**67 部（5.5%）兩軸都掛著它**。
+
+`MOTIFS` 的定義是「戲劇處境」，reluctant hero 是一個人，本來就放錯清單。
+後果是跨兩軸的聚合會把同一件事算兩次。
+
+未在賽前修：從 `MOTIFS` 移除會讓全部標註失效，等於重跑全量。
+已加 `KNOWN_VOCAB_OVERLAP` 釘住這一個，新增的重疊會讓 `tests/test_scoring.py` 失敗。
+
+---
+
+## 7. 評分語意修正：缺資料不等於低分（8/26）
+
+原本 `app/scoring.py` 在沒有可用 interest evidence 時把 `attention_score`
+算成 `0.0`，再乘上權重 0.4 進 composite。附帶的 caveat 寫著「is 0, not low」，
+但**算式仍然在扣 40 分**。缺資料和「同類作品表現墊底」被當成同一件事。
+
+已改為：
+
+| 情況 | 舊行為 | 新行為 |
+|---|---|---|
+| 沒有可用 interest evidence | `attention_score = 0`，composite 扣 40 分 | `attention_score = None`，composite = commercial 分數本身 |
+| 沒有可用 ROI evidence | `commercial_score = 0` | `commercial_score = None`，composite = attention 分數本身 |
+| 兩邊都沒有 | 三個分數都 0.0 | 三個都 `None`，`insufficient_evidence` |
+| 只有單一維度支撐 | confidence 可能是 high | 上限降為 medium |
+
+`compute_composite()` 改成只對存在的維度加權並**重新正規化權重**，
+而不是把缺席的維度當成 0 分代入。
+
+低訊號排除（§6.3 那 71 部）走 SQL：`sql/001` 新增
+`has_interest_signal UInt8 MATERIALIZED interest_median_daily >= 50`，
+`sql/003` 的 interest 聚合改用 `quantileStateIf(...)` ＋ `countIfState(...)`。
+因此兩個 MV 各多一個 `interest_sample_count`——**interest 的樣本數與 ROI 的不同**，
+報告 interest 數字時必須用前者。已在 `app/prompts.py` 明確告訴 agent。
+
+已在 ClickHouse 26.4 實測驗證：兩部同 cohort 的片（900 views/日 與 1 view/日），
+`n_roi=2, n_interest=1`，interest 中位數 = 0.90（只有高訊號那部），
+而非 0.452（把雜訊平均進去的結果）。

@@ -110,8 +110,10 @@ CREATE TABLE films
     interest_median_daily Nullable(UInt32),   -- 窗內每日瀏覽中位數（穩健基線）
     interest_p95_daily    Nullable(UInt32),   -- 尖峰量級
     interest_trend_slope  Nullable(Float32),  -- 窗內趨勢，>0 為上升
-    interest_cohort_pct   Nullable(Float32),  -- 同 cohort 內百分位 0–1
-                                              -- **唯一可跨年份比較的欄位**
+    interest_cohort_pct   Nullable(Float32),  -- 同 cohort 內百分位 0–1，
+                                              -- attention_score 的唯一輸入
+    has_interest_signal   UInt8 MATERIALIZED  -- 是否高於量測下限。71 部低於此，
+                              interest_median_daily >= 50,  -- 其百分位是雜訊排名
     years_to_measurement  UInt8,              -- release_year → 2015，1–25
     attention_kind        LowCardinality(String) DEFAULT 'sustained_interest',
 
@@ -138,8 +140,7 @@ ENGINE = MergeTree
 ORDER BY (film_id, date);
 ```
 
-規模約 **504 萬列**（1,238 部 × 2015-07 至今約 4,071 天）。實測 25 部產出
-101,775 列，外推吻合。
+實測 **4,937,204 列**（1,238 部 × 2015-07 至今最多 4,074 天，1,238/1,238 皆有資料）。
 
 ### 3.3 Materialized Views
 
@@ -166,7 +167,10 @@ AS SELECT
     quantileState(0.5)(roi)                 AS roi_median,
     quantileState(0.75)(roi)                AS roi_p75,
     avgState(tone_axis)                     AS avg_tone,
-    quantileState(0.5)(interest_cohort_pct) AS interest_pct_median
+    -- interest 只聚合高於量測下限的片，故自帶樣本數，且必然小於 sample_count
+    countIfState(has_interest_signal)       AS interest_sample_count,
+    quantileStateIf(0.5)(interest_cohort_pct, has_interest_signal)
+                                            AS interest_pct_median
 FROM films
 WHERE roi IS NOT NULL
 GROUP BY archetype, release_bucket;
@@ -180,9 +184,11 @@ AS SELECT
     pair.2 AS motif_b,
     countState()                            AS sample_count,
     quantileState(0.5)(roi)                 AS roi_median,
-    quantileState(0.5)(interest_cohort_pct) AS interest_pct_median
+    countIfState(has_interest_signal)       AS interest_sample_count,
+    quantileStateIf(0.5)(interest_cohort_pct, has_interest_signal)
+                                            AS interest_pct_median
 FROM (
-    SELECT roi, interest_cohort_pct,
+    SELECT roi, interest_cohort_pct, has_interest_signal,
         arrayJoin(arrayFilter(p -> p.1 < p.2,
             arrayFlatten(arrayMap(a -> arrayMap(b -> (a, b), motif_tags),
                                   motif_tags)))) AS pair
@@ -283,9 +289,16 @@ CMU Movie Summary Corpus 提供劇情文本。
 > 要映射到 0–100 分必須任意選定縮放常數，百分位則天然有界。
 > 完整量測見 `docs/M1_DATA_FINDINGS.md` §1。
 
-> **量測下限**：71 部片的原始日均中位數 < 50，其中 9 部 < 5。這些片算出的
-> `interest_cohort_pct`（如 0.003）看似精確，底下只有雜訊。`attention_score`
-> 應將其視為無資料而非低分——M2 待辦，見 §6.3。
+> **量測下限（已實作）**：71 部片的原始日均中位數 < 50，其中 9 部 < 5。這些片算出的
+> `interest_cohort_pct`（如 0.003）看似精確，底下只有雜訊。
+>
+> `sql/001` 以 `has_interest_signal UInt8 MATERIALIZED interest_median_daily >= 50`
+> 標記（門檻須等於 `app/config.MIN_INTEREST_SIGNAL`，由測試斷言），
+> `sql/003` 的 interest 聚合改用 `quantileStateIf` ＋ `countIfState`。
+> 原始欄位保留全部影片——資料沒有錯，只是低於解析度。
+>
+> 因此兩個 MV 各多一個 **`interest_sample_count`**，與 `sample_count`（描述 ROI）
+> 不同且較小。報告 interest 數字時必須用前者。
 
 **輸出**：`attention.parquet`（約 504 萬列）、`films_enriched.parquet`
 
@@ -422,9 +435,9 @@ class TreatmentProposal(BaseModel):
 class PredictionScore(BaseModel):
     """Analogue / Evidence Scoring 結構體：輸出歷史類比證據而非黑箱預測"""
     proposal_title: str
-    commercial_score: float           # 0–100（基於同類歷史作品 ROI 分布）
-    attention_score: float            # 0–100（基於同類歷史作品維基關注度特徵）
-    composite: float
+    commercial_score: float | None    # 0–100（同類歷史作品 ROI 分布）；None = N/A
+    attention_score: float | None     # 0–100（同類作品維基關注度）；None = N/A
+    composite: float | None           # 只對存在的維度加權並重新正規化
     confidence: Literal["high", "medium", "low", "insufficient_evidence"]
     evidence: list[EvidenceItem]      # 支撐評分的歷史類比查詢證據清單
     caveats: list[str]
@@ -438,6 +451,15 @@ class SceneAsset(BaseModel):
 ```
 
 **評分必須可解釋**：`composite` 不是黑箱數字，而是由 `evidence` 列表中的具體歷史類比查詢結果組成。前端要把兩者並列顯示。
+
+**`None` 與 `0.0` 是兩件不同的事，不可互相折疊。** `None` 是「找不到可比對的東西」，
+`0.0` 是「可比對的作品表現和資料集裡最差的一樣」。舊版在沒有 interest evidence 時
+把 `attention_score` 設成 `0.0` 再乘權重 0.4 代入 composite，caveat 寫著
+「is 0, not low」而算式仍在扣 40 分——缺資料被靜默當成扣分。
+
+現行 `app/scoring.compute_composite()` 只對**存在**的維度加權，並把剩餘權重
+**重新正規化**；兩個維度都缺時回傳 `None` 並標 `insufficient_evidence`。
+單一維度撐起整個 composite 時，confidence 上限降為 `medium`。前端顯示 `N/A`。
 
 ### 5.6 編排
 

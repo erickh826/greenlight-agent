@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from statistics import median
 
-from app.config import MIN_SAMPLE_SIZE, SCORING_WEIGHTS
+from app.config import MIN_INTEREST_SIGNAL, MIN_SAMPLE_SIZE, SCORING_WEIGHTS
 from app.contracts import EvidenceItem
 
 # A film that made back its budget sits at ROI 1.0. The measured median across
@@ -43,26 +43,55 @@ def usable(evidence: list[EvidenceItem]) -> list[EvidenceItem]:
     return [e for e in evidence if e.sample_count >= MIN_SAMPLE_SIZE]
 
 
-def compute_composite(commercial: float, attention: float) -> float:
-    """Weighted blend. The single definition of the composite."""
+def compute_composite(commercial: float | None,
+                      attention: float | None) -> float | None:
+    """Weighted blend over the dimensions that have evidence.
+
+    A missing dimension is dropped and the remaining weights renormalised, not
+    passed in as zero. Zero is a position on the scale -- it says the
+    comparables performed as badly as anything in the dataset -- and the earlier
+    version used it for "we found nothing", then attached a caveat saying the
+    score was "0, not low" while the arithmetic went on treating it as low. A
+    film with no usable interest comparables was losing 40 points of composite
+    for the absence.
+
+    Returns None when neither dimension has evidence; there is no number to
+    give, and 0.0 would be the same lie one level up.
+    """
+    present = {name: score for name, score
+               in (("commercial", commercial), ("attention", attention))
+               if score is not None}
+    if not present:
+        return None
+
+    total_weight = sum(SCORING_WEIGHTS[name] for name in present)
     return _clamp(
-        commercial * SCORING_WEIGHTS["commercial"]
-        + attention * SCORING_WEIGHTS["attention"]
+        sum(score * SCORING_WEIGHTS[name] for name, score in present.items())
+        / total_weight
     )
 
 
 def score_from_evidence(
     roi_evidence: list[EvidenceItem],
     interest_evidence: list[EvidenceItem],
-) -> tuple[float, float, float, str, list[str]]:
+) -> tuple[float | None, float | None, float | None, str, list[str]]:
     """Derive both sub-scores and the composite from evidence alone.
 
-    Returns (commercial, attention, composite, confidence, caveats).
+    Returns (commercial, attention, composite, confidence, caveats). Any of the
+    three is None when nothing backed it -- N/A, not zero. See compute_composite.
 
-    Confidence tracks how much survived the sample floor, not how sure the
-    model sounded. With nothing left on either side the caller must emit
+    Confidence tracks how much survived the sample floor, not how sure the model
+    sounded. With nothing left on either side the caller must emit
     insufficient_evidence rather than a number, because a score with no rows
     behind it is exactly the black box this design exists to avoid.
+
+    One limit worth stating plainly: the low-signal exclusion (films under
+    MIN_INTEREST_SIGNAL daily views, whose cohort percentile is a precise-looking
+    ranking of noise) happens in SQL, via the has_interest_signal column that
+    sql/003 filters the interest aggregates on. This function sees only
+    sample_count, so it cannot verify the agent used interest_sample_count
+    rather than the ROI row count. app/prompts.py instructs it to; that
+    instruction is the enforcement.
     """
     caveats: list[str] = []
 
@@ -78,20 +107,27 @@ def score_from_evidence(
         )
 
     if not roi_ok and not interest_ok:
-        return 0.0, 0.0, 0.0, "insufficient_evidence", caveats + [
+        return None, None, None, "insufficient_evidence", caveats + [
             "No comparable set met the sample floor; no score was computed."
         ]
 
-    commercial = median(roi_to_score(e.value) for e in roi_ok) if roi_ok else 0.0
+    commercial = median(roi_to_score(e.value) for e in roi_ok) if roi_ok else None
     attention = (median(cohort_pct_to_score(e.value) for e in interest_ok)
-                 if interest_ok else 0.0)
+                 if interest_ok else None)
 
-    if not roi_ok:
-        caveats.append("No usable ROI comparables; commercial score is 0, "
-                       "not low.")
-    if not interest_ok:
-        caveats.append("No usable interest comparables; attention score is 0, "
-                       "not low.")
+    if commercial is None:
+        caveats.append(
+            f"No ROI comparables met the {MIN_SAMPLE_SIZE}-sample floor. "
+            "Commercial score is N/A and the composite is the attention score "
+            "alone -- it is not a low commercial result."
+        )
+    if attention is None:
+        caveats.append(
+            f"No interest comparables met the {MIN_SAMPLE_SIZE}-sample floor, "
+            f"after films under {MIN_INTEREST_SIGNAL} daily views were excluded "
+            "as below the measurement floor. Attention score is N/A and the "
+            "composite is the commercial score alone -- it is not low interest."
+        )
     else:
         # Worth restating on every score: this is the one thing about the
         # attention figure a reader is most likely to misread.
@@ -103,6 +139,10 @@ def score_from_evidence(
 
     total = len(roi_ok) + len(interest_ok)
     confidence = "high" if total >= 6 else "medium" if total >= 3 else "low"
+    # One dimension carrying the whole composite is at most medium confidence,
+    # however many rows stood behind it.
+    if commercial is None or attention is None:
+        confidence = "medium" if confidence == "high" else confidence
 
     return (commercial, attention,
             compute_composite(commercial, attention), confidence, caveats)

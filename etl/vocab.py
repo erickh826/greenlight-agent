@@ -59,6 +59,18 @@ MOTIFS: Final[tuple[str, ...]] = (
 
 # --- Character archetypes ---------------------------------------------------
 # Assigned 2-4 per film. Roles in the story's machinery, not personality types.
+#
+# KNOWN P1 (2026-08-26): "reluctant_hero" appears in both MOTIFS and ARCHETYPES,
+# and it does not belong in MOTIFS -- that list is meant to hold dramatic
+# situations, and a reluctant hero is a person. Measured over the 1,210 labelled
+# films it is used 82 times as a motif against 521 as an archetype, and 67 films
+# (5.5%) carry it on both axes, where it means the same thing twice and inflates
+# any joint aggregate over the two.
+#
+# Not fixed before the demo: removing it from MOTIFS invalidates every labelled
+# film and costs a full relabelling run. Deferred deliberately, with
+# KNOWN_VOCAB_OVERLAP below pinned so that a *new* collision fails the tests
+# while this one stays visible.
 ARCHETYPES: Final[tuple[str, ...]] = (
     "reluctant_hero",
     "antihero",
@@ -134,6 +146,12 @@ RELEASE_BUCKETS: Final[tuple[str, ...]] = (
 BUCKET_SPAN: Final[int] = 5
 BUCKET_FLOOR: Final[int] = 1990
 
+# The overlaps between MOTIFS and ARCHETYPES that are known and accepted for
+# now. Pinned rather than asserted empty so the existing P1 stays documented
+# while a newly introduced collision -- the far likelier mistake when someone
+# extends a list -- fails tests/test_scoring.py immediately.
+KNOWN_VOCAB_OVERLAP: Final[frozenset[str]] = frozenset({"reluctant_hero"})
+
 # The first day the Wikimedia pageviews API has data for. Every film in the
 # dataset was released before it -- see docs/M1_DATA_FINDINGS.md §1.
 MEASUREMENT_START_YEAR: Final[int] = 2015
@@ -173,5 +191,6 @@ def as_sql_list(values: tuple[str, ...]) -> str:
 __all__ = [
     "MOTIFS", "ARCHETYPES", "ACT_STRUCTURES", "CONFLICT_SCALES",
     "RELEASE_BUCKETS", "BUCKET_SPAN", "BUCKET_FLOOR", "MEASUREMENT_START_YEAR",
+    "KNOWN_VOCAB_OVERLAP",
     "release_bucket", "years_to_measurement", "as_sql_list",
 ]

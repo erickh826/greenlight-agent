@@ -52,6 +52,16 @@ CREATE TABLE IF NOT EXISTS films
                                               -- apart, so their raw counts are not
                                               -- on the same scale; their percentiles
                                               -- within same-aged peers are.
+    -- Whether this film's interest figures are above the measurement floor.
+    -- 71 of 1,238 films sit under 50 daily views and 9 under 5. At one view a
+    -- day, interest_cohort_pct comes out as 0.003 -- which reads as a confident
+    -- "bottom of its cohort" measurement when it is really the absence of one.
+    -- The raw columns keep those films; sql/003 excludes them from the interest
+    -- aggregates. Must equal app/config.MIN_INTEREST_SIGNAL (asserted by
+    -- tests/test_scoring.py).
+    has_interest_signal   UInt8 MATERIALIZED
+                              interest_median_daily >= 50,
+
     years_to_measurement  UInt8,              -- release_year → 2015, so 1-25
     attention_kind        LowCardinality(String) DEFAULT 'sustained_interest',
                                               -- constant today: every film predates

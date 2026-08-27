@@ -33,7 +33,12 @@ AS SELECT
     quantileState(0.5)(roi)             AS roi_median,
     quantileState(0.75)(roi)            AS roi_p75,
     avgState(tone_axis)                 AS avg_tone,
-    quantileState(0.5)(interest_cohort_pct) AS interest_pct_median
+    -- Interest is aggregated only over films above the measurement floor, so
+    -- it needs its own row count: sample_count describes the ROI figures and
+    -- will be the larger of the two. Score attention against THIS one.
+    countIfState(has_interest_signal)   AS interest_sample_count,
+    quantileStateIf(0.5)(interest_cohort_pct, has_interest_signal)
+                                        AS interest_pct_median
 FROM films
 WHERE roi IS NOT NULL
 GROUP BY archetype, release_bucket;
@@ -70,11 +75,16 @@ AS SELECT
     pair.2 AS motif_b,
     countState()                            AS sample_count,
     quantileState(0.5)(roi)                 AS roi_median,
-    quantileState(0.5)(interest_cohort_pct) AS interest_pct_median
+    -- See mv_archetype_performance: interest excludes films below the
+    -- measurement floor, so it carries its own count.
+    countIfState(has_interest_signal)       AS interest_sample_count,
+    quantileStateIf(0.5)(interest_cohort_pct, has_interest_signal)
+                                            AS interest_pct_median
 FROM (
     SELECT
         roi,
         interest_cohort_pct,
+        has_interest_signal,
         arrayJoin(
             arrayFilter(
                 p -> p.1 < p.2,
