@@ -22,7 +22,11 @@ build/
 *.csv
 data/
 *.log
+# Agent traces are evidence, not build output -- the submission is judged
+# partly on showing a real MCP round trip. Credentials are redacted by
+# app/env.redact() before anything is written.
 !docs/m0-mcp-trace.log
+!docs/m2-recombine-phase-a-trace.log
 .idea/
 .vscode/
 

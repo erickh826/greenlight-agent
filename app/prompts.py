@@ -99,6 +99,17 @@ Array membership uses has():
 
     SELECT count() FROM films WHERE has(motif_tags, 'revenge')
 
+Never scan film_attention. It holds 4,937,204 daily rows and exists to feed
+mv_interest_by_year, which already has the per-film, per-year totals. Read it
+directly only for a specific film:
+
+    SELECT calendar_year, sumMerge(total_views) AS views
+    FROM mv_interest_by_year WHERE film_id = 'Q25188'
+    GROUP BY calendar_year ORDER BY calendar_year
+
+An aggregate over film_attention with no film_id filter is always the wrong
+query, and slow enough to break the latency budget on its own.
+
 Sample size gates everything. Below {MIN_SAMPLE_SIZE} rows, report
 insufficient_evidence instead of a figure:
 
