@@ -43,9 +43,35 @@ as the number of films behind it.
 Work broad to narrow, and check the count at every step:
 
 1. Motif pairs from mv_motif_pair_stats, for pairs drawn from the proposal's
-   motif_tags. No era filter.
+   motif_tags. No era filter. Prefer one set-based query for the whole proposal
+   motif set instead of one tool call per pair:
+
+       SELECT motif_a, motif_b,
+              countMerge(sample_count)       AS n_roi,
+              quantileMerge(0.5)(roi_median) AS roi_median,
+              countMerge(interest_sample_count) AS n_interest,
+              quantileMerge(0.5)(interest_pct_median) AS interest_median
+       FROM mv_motif_pair_stats
+       WHERE motif_a IN ('…', '…') AND motif_b IN ('…', '…')
+       GROUP BY motif_a, motif_b
+       HAVING n_roi >= 8
+       ORDER BY roi_median DESC, n_roi DESC
+
 2. Archetypes from mv_archetype_performance, for the proposal's
-   character_archetypes. No era filter yet.
+   character_archetypes. No era filter yet. Prefer one query for the archetype
+   set instead of one call per archetype:
+
+       SELECT archetype,
+              countMerge(sample_count)       AS n_roi,
+              quantileMerge(0.5)(roi_median) AS roi_median,
+              countMerge(interest_sample_count) AS n_interest,
+              quantileMerge(0.5)(interest_pct_median) AS interest_median
+       FROM mv_archetype_performance
+       WHERE archetype IN ('…', '…')
+       GROUP BY archetype
+       HAVING n_roi >= 8
+       ORDER BY roi_median DESC, n_roi DESC
+
 3. A film-level analogue set from films, matching at least one proposal motif
    and at least one proposal archetype. Start with that relaxed intersection and
    compute it in one query:

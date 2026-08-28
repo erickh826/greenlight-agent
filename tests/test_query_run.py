@@ -73,6 +73,26 @@ def test_call_and_response_stay_paired_across_events():
     assert run.queries == ["SELECT 1", "SELECT 2"]
 
 
+def test_extend_merges_follow_up_run_without_pending_sql():
+    base = run_with(OK_PAYLOAD)
+    extra = QueryRun()
+    extra.notes.append("needed archetype surface")
+    extra.model_errors.append("ResourceExhausted: 429")
+    extra.record_call("SELECT 2")
+    extra.record_response(OK_PAYLOAD)
+    extra.record_call("SELECT 3")
+
+    base.extend(extra)
+
+    assert base.calls == 3
+    assert base.responses == 2
+    assert base.queries == [GOOD_SQL, "SELECT 2"]
+    assert base.payloads == [OK_PAYLOAD, OK_PAYLOAD]
+    assert base.notes == ["needed archetype surface"]
+    assert base.model_errors == ["ResourceExhausted: 429"]
+    assert base.pending_sql == []
+
+
 # --- the guardrail refuses before the database is touched -------------------
 
 def test_violating_query_is_refused_with_a_reason():

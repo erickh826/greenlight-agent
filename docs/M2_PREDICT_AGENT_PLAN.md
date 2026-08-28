@@ -119,12 +119,14 @@ production budget.
 The agent should assemble queries from broad to narrow:
 
 1. **Broad motif-pair evidence** from `mv_motif_pair_stats`.
-   - For every pair inside `proposal.motif_tags`, check ROI and interest.
+   - Check every pair inside `proposal.motif_tags`, but prefer one set-based
+     query for the proposal motif set instead of one tool call per pair.
    - Require `HAVING n_roi >= 8`.
    - Interest evidence uses `n_interest`, not `n_roi`.
 
 2. **Broad archetype evidence** from `mv_archetype_performance`.
-   - For every proposal archetype, check ROI and interest.
+   - Check every proposal archetype, but prefer one `WHERE archetype IN (...)`
+     query instead of one tool call per archetype.
    - Start without `release_bucket`.
    - Add release bucket only if a target bucket exists and the broad result has
      enough samples.

@@ -329,17 +329,23 @@ ROI 分位數與 sustained-interest proxy，且重試次數受控 → **PASS**�
 - [x] 端到端 CLI 跑通（`scripts/run_greenlight.py`）
 - [x] 結構化 log 輸出（`docs/m2-greenlight-events.jsonl`，走 `InProcessEventBus`）
 - [x] 彩蛋分支：`temperature=1.5` 的 wildcard（原列在 8/29–8/30，一併完成）
+- [x] Phase A handoff 檢查：grounded proposal 之前必須有
+      `mv_motif_pair_stats` 和 `mv_archetype_performance` 的成功結果；缺 surface
+      時由 RecombineAgent 補查後再進 Phase B
+- [x] PredictAgent 查詢粒度收斂：motif pairs / archetypes 優先用 set-based SQL
+      一次查同一個 surface，避免 wildcard 分支展開成多個同質平行查詢
 
 **DoD**：一次執行輸出雙方案 JSON ＋ 完整 tool call trace → **PASS**。
 
 驗收（2026-08-29，提前完成）：
 
-- `./scripts/run_etl.sh -m pytest tests -q` → **87 passed**
+- `./scripts/run_etl.sh -m pytest tests -q` → **88 passed**
 - `python3 -m compileall app scripts etl tests` → PASS
-- `./scripts/run_agent.sh scripts/run_greenlight.py` → **12/12 PASS**：
-  Phase A 7 次自主查詢、兩個方案都通過驗證與評分、31/31 個 `tool_call`
-  事件都帶 SQL 原文、SSE 需要的事件型別齊全、狀態機停在 `awaiting_approval`、
-  總計 31 次 tool call / 0 SQL 錯誤 / 0 護欄攔截 / 236s
+- `./scripts/run_agent.sh scripts/run_greenlight.py` → **13/13 PASS**：
+  warm-up 3/3、Phase A 6 次自主查詢、handoff surface 完整、兩個方案都通過
+  驗證與評分、22/22 個 `tool_call` 事件都帶 SQL 原文、SSE 需要的事件型別
+  齊全、狀態機停在 `awaiting_approval`、總計 22 次 tool call / 0 SQL 錯誤 /
+  0 護欄攔截 / 250.9s；本輪 composite：grounded **64.49**、wildcard **49.85**
 
 **沒有用 `SequentialAgent`，理由要記下來**：`SequentialAgent` 把 sub-agent 串在
 同一個 invocation 和同一個 session 裡。這條 pipeline 不是「一串模型呼叫」，是

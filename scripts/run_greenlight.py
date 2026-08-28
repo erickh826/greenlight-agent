@@ -41,7 +41,9 @@ from app.contracts import GreenlightRunResult, PredictionScore  # noqa: E402
 from app.env import load_env, redact  # noqa: E402
 from app.events import Event, InProcessEventBus  # noqa: E402
 from app.mcp import build_clickhouse_tools, warm_up  # noqa: E402
-from app.pipeline import DEFAULT_PROMPT, run_greenlight  # noqa: E402
+from app.pipeline import (  # noqa: E402
+    DEFAULT_PROMPT, RECOMBINE_REQUIRED_SURFACES, recombine_surfaces_seen,
+    run_greenlight)
 from app.scoring import score_from_evidence  # noqa: E402
 from app.state import RunState, RunStore  # noqa: E402
 
@@ -187,6 +189,10 @@ async def main() -> int:
             RESULT_PATH.read_text(encoding="utf-8"))
         scored = [o for o in published.outcomes if o.score]
         seen_types = {e["type"] for e in rec.events}
+        phase_a_surfaces = sorted(recombine_surfaces_seen(phase_a))
+        missing_phase_a_surfaces = [
+            surface for surface in RECOMBINE_REQUIRED_SURFACES
+            if surface not in phase_a_surfaces]
         tool_calls = [e for e in rec.events if e["type"] == "tool_call"]
         with_sql = [e for e in tool_calls
                     if (e.get("args") or {}).get("query", "").strip()]
@@ -200,11 +206,16 @@ async def main() -> int:
              else f"失敗：{', '.join(warm_failures)}"),
             (phase_a.calls >= 2, "Phase A 自主查詢 ClickHouse",
              f"{phase_a.calls} 次 tool call"),
+            (not missing_phase_a_surfaces,
+             "Phase A handoff 包含 grounded proposal 必需的 evidence surface",
+             f"已查到 {phase_a_surfaces}"
+             if not missing_phase_a_surfaces
+             else f"缺少 {missing_phase_a_surfaces}，已查到 {phase_a_surfaces}"),
             (len(published.outcomes) == len(args.variants),
              f"要求的 {len(args.variants)} 個方案都有結果",
              f"{[o.variant for o in published.outcomes]}"),
             (all(o.proposal is not None for o in published.outcomes),
-             "每個方案都產出通過驗證的 TreatmentProposal",
+             "每個方案都產出 TreatmentProposal",
              "; ".join(f"{o.variant}: "
                        + ("ok" if o.proposal and not o.validation_errors
                           else "; ".join(o.validation_errors) or "no proposal")

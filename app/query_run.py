@@ -103,6 +103,7 @@ class QueryRun:
         self.payloads: list[str] = []
         self.notes: list[str] = []
         self.blocked: list[tuple[str, list[Finding]]] = []
+        self.model_errors: list[str] = []
         # Calls and their responses arrive as separate events, so the SQL has
         # to be held between the two. FIFO: the ADK emits them in order, and a
         # guardrail-refused call still produces a response that consumes its
@@ -138,6 +139,26 @@ class QueryRun:
 
     def record_refusal(self, sql: str, findings: list[Finding]) -> None:
         self.blocked.append((sql, findings))
+
+    def extend(self, other: "QueryRun") -> None:
+        """Merge a follow-up run into this stage's accounting.
+
+        Follow-up sessions are how the root pipeline repairs an incomplete
+        evidence handoff without pretending one model invocation did work it
+        skipped. Only completed query/result pairs become transcript evidence;
+        pending calls are session-local and are left out.
+        """
+        self.queries.extend(other.queries)
+        self.payloads.extend(other.payloads)
+        self.notes.extend(other.notes)
+        self.blocked.extend(other.blocked)
+        self.model_errors.extend(other.model_errors)
+        self.calls += other.calls
+        self.responses += other.responses
+        self.errors += other.errors
+        self.consecutive_failures = other.consecutive_failures
+        self.retries_exhausted = (
+            self.retries_exhausted or other.retries_exhausted)
 
     # --- limits -------------------------------------------------------------
 

@@ -57,8 +57,21 @@ from app.query_run import QueryRun, extract_sql, guardrail_refusal, parse_result
 Emit = Callable[[Event], None]
 
 # Broad -> second surface -> narrowings -> a retry. Beyond this the agent is not
-# converging and the run should stop costing money.
+# converging and the run should stop costing money. PredictAgent gets a separate
+# ceiling because wildcard proposals can legitimately require more pair and
+# archetype checks before convergence.
 MAX_TURNS = 14
+PREDICT_MAX_TURNS = 24
+PHASE_A_COMPLETION_MAX_TURNS = 4
+
+# Phase B can only ground motif_tags and character_archetypes in the Phase A
+# transcript. Require at least one successful query against each aggregate before
+# handing it off; otherwise the no-tools stage is forced to invent half of the
+# vocabulary it needs.
+RECOMBINE_REQUIRED_SURFACES = (
+    "mv_motif_pair_stats",
+    "mv_archetype_performance",
+)
 
 # Rows shown in a tool_result event. The model gets the whole set; this is what
 # the interface renders beside the query.
@@ -69,6 +82,19 @@ DEFAULT_PROMPT = (
     "Use the database yourself: start broad, cite sample counts, and do not "
     "invent columns or vocabulary terms."
 )
+
+
+def recombine_surfaces_seen(run: QueryRun) -> set[str]:
+    """Required Phase A evidence surfaces that returned a successful result."""
+    haystack = "\n".join(run.queries).lower()
+    return {surface for surface in RECOMBINE_REQUIRED_SURFACES
+            if surface in haystack}
+
+
+def recombine_missing_surfaces(run: QueryRun) -> list[str]:
+    seen = recombine_surfaces_seen(run)
+    return [surface for surface in RECOMBINE_REQUIRED_SURFACES
+            if surface not in seen]
 
 
 def _guardrail_gate(run: QueryRun, emit: Emit, agent: str):
@@ -116,58 +142,69 @@ async def drive(agent, prompt: str, emit: Emit, *, app_name: str,
     emit(make_event("agent_start", agent=agent.name))
     started: list[float] = []
 
-    async for event in runner.run_async(
-        user_id="greenlight", session_id=app_name,
-        new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
-    ):
-        for part in (event.content.parts if event.content else []) or []:
-            if part.function_call:
-                args = dict(part.function_call.args or {})
-                sql = extract_sql(args)
-                run.record_call(sql)
-                started.append(time.monotonic())
-                emit(make_event("tool_call", agent=agent.name,
-                                tool=part.function_call.name, args=args))
+    try:
+        async for event in runner.run_async(
+            user_id="greenlight", session_id=app_name,
+            new_message=types.Content(
+                role="user", parts=[types.Part(text=prompt)]),
+        ):
+            for part in (event.content.parts if event.content else []) or []:
+                if part.function_call:
+                    args = dict(part.function_call.args or {})
+                    sql = extract_sql(args)
+                    run.record_call(sql)
+                    started.append(time.monotonic())
+                    emit(make_event("tool_call", agent=agent.name,
+                                    tool=part.function_call.name, args=args))
 
-            elif part.function_response:
-                response = part.function_response.response
-                payload = json.dumps(response, indent=2, default=str)
-                elapsed = ((time.monotonic() - started.pop(0)) * 1000
-                           if started else 0.0)
-                is_error = run.record_response(payload)
+                elif part.function_response:
+                    response = part.function_response.response
+                    payload = json.dumps(response, indent=2, default=str)
+                    elapsed = ((time.monotonic() - started.pop(0)) * 1000
+                               if started else 0.0)
+                    is_error = run.record_response(payload)
 
-                if is_error:
-                    emit(make_event("tool_error", agent=agent.name,
-                                    error=payload[:2000],
-                                    elapsed_ms=elapsed,
-                                    retry=run.consecutive_failures))
-                else:
-                    parsed = parse_result(
-                        response if isinstance(response, dict) else None)
-                    columns, rows = parsed or ([], [])
-                    emit(make_event(
-                        "tool_result", agent=agent.name,
-                        rows=len(rows), elapsed_ms=elapsed,
-                        preview=[[str(v) for v in r]
-                                 for r in rows[:PREVIEW_ROWS]],
-                        payload={"columns": columns} if columns else {}))
+                    if is_error:
+                        emit(make_event("tool_error", agent=agent.name,
+                                        error=payload[:2000],
+                                        elapsed_ms=elapsed,
+                                        retry=run.consecutive_failures))
+                    else:
+                        parsed = parse_result(
+                            response if isinstance(response, dict) else None)
+                        columns, rows = parsed or ([], [])
+                        emit(make_event(
+                            "tool_result", agent=agent.name,
+                            rows=len(rows), elapsed_ms=elapsed,
+                            preview=[[str(v) for v in r]
+                                     for r in rows[:PREVIEW_ROWS]],
+                            payload={"columns": columns} if columns else {}))
 
-            elif part.text and part.text.strip():
-                run.notes.append(part.text.strip())
-                emit(make_event("agent_output", agent=agent.name,
-                                message=part.text.strip()))
+                elif part.text and part.text.strip():
+                    run.notes.append(part.text.strip())
+                    emit(make_event("agent_output", agent=agent.name,
+                                    message=part.text.strip()))
 
-        if run.over_retry_limit():
-            run.retries_exhausted = True
-            emit(make_event("error", agent=agent.name,
-                            message=f"{run.consecutive_failures} consecutive "
-                                    f"failures; stopping at the limit of "
-                                    f"{run.attempts_allowed} attempts"))
-            break
-        if run.calls > max_turns:
-            emit(make_event("error", agent=agent.name,
-                            message=f"more than {max_turns} tool calls"))
-            break
+            if run.over_retry_limit():
+                run.retries_exhausted = True
+                emit(make_event(
+                    "error", agent=agent.name,
+                    message=f"{run.consecutive_failures} consecutive "
+                            f"failures; stopping at the limit of "
+                            f"{run.attempts_allowed} attempts"))
+                break
+            if run.calls > max_turns:
+                emit(make_event("error", agent=agent.name,
+                                message=f"more than {max_turns} tool calls"))
+                break
+    except Exception as exc:
+        message = f"{type(exc).__name__}: {exc}"
+        run.model_errors.append(message)
+        emit(make_event(
+            "error", agent=agent.name,
+            message="model execution failed after "
+                    f"{run.calls} tool calls and {run.responses} responses: "
+                    + message[:1200]))
 
     return run
 
@@ -180,7 +217,77 @@ async def recombine_phase_a(model: str, toolset, prompt: str,
     run = QueryRun()
     agent = build_recombine_phase_a_agent(model, toolset)
     agent.before_tool_callback = _guardrail_gate(run, emit, agent.name)
-    return await drive(agent, prompt, emit, app_name="recombine_a", run=run)
+    run = await drive(agent, prompt, emit, app_name="recombine_a", run=run)
+
+    for attempt in range(SQL_RETRY_LIMIT):
+        missing = recombine_missing_surfaces(run)
+        if not missing:
+            break
+
+        emit(make_event(
+            "agent_output", agent="root",
+            message="Phase A handoff is missing required evidence surface(s): "
+                    + ", ".join(missing)
+                    + ". Asking RecombineAgent to retrieve the missing "
+                      "aggregate evidence before Phase B."))
+
+        extra = QueryRun()
+        completion_agent = build_recombine_phase_a_agent(model, toolset)
+        completion_agent.before_tool_callback = _guardrail_gate(
+            extra, emit, completion_agent.name)
+        extra = await drive(
+            completion_agent,
+            PHASE_A_COMPLETION_PROMPT.format(
+                missing=", ".join(missing),
+                transcript=run.transcript()),
+            emit,
+            app_name=f"recombine_a_complete_{attempt + 1}",
+            run=extra,
+            max_turns=PHASE_A_COMPLETION_MAX_TURNS,
+        )
+        run.extend(extra)
+
+    return run
+
+
+PHASE_A_COMPLETION_PROMPT = """The previous Phase A transcript is incomplete
+for grounded Phase B. It is missing successful ClickHouse results from:
+{missing}
+
+Run only the additional broad aggregate query or queries needed to cover those
+missing surfaces. Use mcp-clickhouse. Do not write a TreatmentProposal and do
+not answer from memory.
+
+Use these query shapes if the matching surface is missing:
+
+mv_motif_pair_stats:
+SELECT motif_a, motif_b,
+       countMerge(sample_count) AS n_roi,
+       quantileMerge(0.5)(roi_median) AS roi_median,
+       countMerge(interest_sample_count) AS n_interest,
+       quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_motif_pair_stats
+GROUP BY motif_a, motif_b
+HAVING n_roi >= 8
+ORDER BY roi_median DESC, interest_median DESC
+LIMIT 10
+
+mv_archetype_performance:
+SELECT archetype,
+       countMerge(sample_count) AS n_roi,
+       quantileMerge(0.5)(roi_median) AS roi_median,
+       countMerge(interest_sample_count) AS n_interest,
+       quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_archetype_performance
+GROUP BY archetype
+HAVING n_roi >= 8
+ORDER BY roi_median DESC, interest_median DESC
+LIMIT 10
+
+PREVIOUS PHASE A TRANSCRIPT
+===========================
+{transcript}
+"""
 
 
 PHASE_B_PROMPT = """Create exactly one {variant} TreatmentProposal from the
@@ -296,7 +403,8 @@ async def score_proposal(model: str, toolset,
     query_agent.before_tool_callback = _guardrail_gate(
         query_run, emit, query_agent.name)
     query_run = await drive(query_agent, analogue_prompt(request), emit,
-                            app_name=f"predict_query_{variant}", run=query_run)
+                            app_name=f"predict_query_{variant}",
+                            run=query_run, max_turns=PREDICT_MAX_TURNS)
 
     caveats = comparison_caveats(
         request.budget_band,
@@ -431,4 +539,5 @@ async def run_greenlight(
 
 __all__ = ["run_greenlight", "recombine_phase_a", "recombine_phase_b",
            "score_proposal", "drive", "ScoringOutcome", "DEFAULT_PROMPT",
-           "MAX_TURNS"]
+           "MAX_TURNS", "PREDICT_MAX_TURNS", "RECOMBINE_REQUIRED_SURFACES",
+           "recombine_missing_surfaces", "recombine_surfaces_seen"]
