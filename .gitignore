@@ -22,6 +22,21 @@ build/
 *.csv
 data/
 *.log
+# Agent traces are evidence, not build output -- the submission is judged
+# partly on showing a real MCP round trip. Credentials are redacted by
+# app/env.redact() before anything is written.
 !docs/m0-mcp-trace.log
+!docs/m2-recombine-phase-a-trace.log
+!docs/m2-recombine-phase-b-grounded-trace.log
 .idea/
 .vscode/
+
+# Agent skill packs (vendored from google/skills, not project source)
+.agents/
+.claude/
+skills-lock.json
+suggestion/
+
+# CMU Movie Summary Corpus — CC BY-SA 3.0, downloaded at ETL time, never committed
+data/MovieSummaries/
+data/MovieSummaries.tar.gz
