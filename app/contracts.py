@@ -54,6 +54,21 @@ class EvidenceItem(BaseModel):
                                      "recompute without parsing `claim`")
 
 
+class AnalogueEvidence(EvidenceItem):
+    """An EvidenceItem that also says which score it feeds.
+
+    The metric is not cosmetic. commercial reads an ROI figure against the ROI
+    row count; attention reads interest_cohort_pct against interest_sample_count,
+    which is the smaller of the two because interest is aggregated only over
+    films above the measurement floor. Getting the pairing wrong produces a
+    number that looks entirely reasonable and is backed by fewer rows than it
+    claims, so app/analogue_scoring.py checks the pairing against the SQL rather
+    than taking the label's word for it.
+    """
+
+    metric: Literal["commercial", "attention"]
+
+
 class FilmMotifs(BaseModel):
     """ETL output: what Gemini extracts from one plot summary.
 
@@ -95,6 +110,12 @@ class PredictionScore(BaseModel):
     "the score is explainable" only means something if the arithmetic is
     reproducible from the listed evidence.
 
+    evidence is AnalogueEvidence rather than EvidenceItem so that `metric`
+    survives serialisation. Pydantic serialises by the declared type, so with
+    the base class here the written JSON lost the commercial/attention label --
+    which left a file whose composite could not be recomputed from its own
+    contents, the one property this class exists to have.
+
     All three scores are nullable, and the distinction is load-bearing: None is
     "we found nothing to compare against", 0.0 is "the comparables were as bad
     as anything in the dataset". Folding the first into the second is a silent
@@ -119,11 +140,51 @@ class PredictionScore(BaseModel):
         description="Weighted blend of whichever sub-scores exist, with the "
                     "remaining weights renormalised. None when neither does.")
     confidence: Literal["high", "medium", "low", "insufficient_evidence"]
-    evidence: list[EvidenceItem]
+    evidence: list[AnalogueEvidence]
     caveats: list[str] = Field(
         default_factory=list,
         description="Stated limits of this comparison, e.g. thin sample, era "
                     "mismatch, interest measured years after release")
+
+
+# Analogue retrieval bands. These are filters for finding comparable films, not
+# claims about what the proposal would actually cost to make -- a proposal has
+# no budget, so one is chosen for it and stated.
+BudgetBand = Literal["micro", "low", "mid", "high"]
+
+
+class AnalogueScoringRequest(BaseModel):
+    """What PredictAgent is asked to score, and under which comparison.
+
+    TreatmentProposal carries no budget and no target era, because neither is a
+    property of an idea. They are properties of the comparison being drawn, so
+    they live here: the caller picks the analogue set, and the caveats on the
+    resulting score say which one was picked.
+
+    release_bucket defaults to None on purpose. Narrowing by era is the step
+    that empties a cell -- see sql/003 on mv_motif_pair_stats -- so it is opt-in
+    and applied last, after the broad result has shown it can afford the split.
+    """
+
+    proposal: TreatmentProposal
+    budget_band: BudgetBand | None = "mid"
+    target_release_bucket: ReleaseBucket | None = None
+
+
+class AnalogueEvidenceBundle(BaseModel):
+    """The convergence step's output: evidence only, deliberately no scores.
+
+    PredictAgent never emits commercial_score, attention_score or composite.
+    Those are computed in app/scoring.py from this list, which is the only way
+    "the score is explainable" survives contact with a judge who recomputes it.
+    """
+
+    proposal_title: str
+    evidence: list[AnalogueEvidence]
+    caveats: list[str] = Field(
+        default_factory=list,
+        description="Limits of this comparison in prose. No numbers that are "
+                    "not already in an evidence item.")
 
 
 class SceneAsset(BaseModel):
@@ -137,5 +198,6 @@ class SceneAsset(BaseModel):
 __all__ = [
     "Motif", "Archetype", "ActStructure", "ConflictScale", "ReleaseBucket",
     "EvidenceItem", "FilmMotifs", "TreatmentProposal", "PredictionScore",
-    "SceneAsset",
+    "BudgetBand", "AnalogueScoringRequest", "AnalogueEvidence",
+    "AnalogueEvidenceBundle", "SceneAsset",
 ]

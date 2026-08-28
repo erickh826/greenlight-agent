@@ -60,11 +60,12 @@ def parse_treatment_proposal(text: str) -> TreatmentProposal:
     return TreatmentProposal.model_validate_json(extract_json_object(text))
 
 
-def _canonical_sql(sql: str) -> str:
+def canonical_sql(sql: str) -> str:
+    """Comparable form of a query: no comments, one space, no trailing ;."""
     return normalise(sql).rstrip(";").lower()
 
 
-def _source_names(sql: str) -> set[str]:
+def source_names(sql: str) -> set[str]:
     names = set()
     for match in re.finditer(r"\b(?:from|join)\s+([a-zA-Z_][\w.]*)",
                              normalise(sql), re.I):
@@ -78,7 +79,7 @@ def validate_grounded_proposal(
 ) -> list[str]:
     """Errors that make a Phase B proposal insufficiently grounded."""
     errors: list[str] = []
-    transcript_sql = _canonical_sql(phase_a_transcript)
+    transcript_sql = canonical_sql(phase_a_transcript)
 
     if proposal.variant != "grounded":
         errors.append(f"variant must be grounded, got {proposal.variant!r}")
@@ -107,11 +108,11 @@ def validate_grounded_proposal(
             errors.append(f"{prefix} has an empty sql_query")
             continue
 
-        if _canonical_sql(sql) not in transcript_sql:
+        if canonical_sql(sql) not in transcript_sql:
             errors.append(f"{prefix} sql_query was not copied from Phase A")
 
         source = item.source_view.strip().split(".")[-1].lower()
-        if source and source not in _source_names(sql):
+        if source and source not in source_names(sql):
             errors.append(
                 f"{prefix} source_view {item.source_view!r} is not read by "
                 "sql_query"
@@ -134,6 +135,8 @@ def validate_grounded_proposal(
 
 
 __all__ = [
+    "canonical_sql",
+    "source_names",
     "extract_json_object",
     "parse_treatment_proposal",
     "validate_grounded_proposal",

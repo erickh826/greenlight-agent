@@ -28,6 +28,7 @@ data/
 !docs/m0-mcp-trace.log
 !docs/m2-recombine-phase-a-trace.log
 !docs/m2-recombine-phase-b-grounded-trace.log
+!docs/m2-predict-agent-trace.log
 .idea/
 .vscode/
 

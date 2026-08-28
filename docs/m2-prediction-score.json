@@ -1,0 +1,97 @@
+{
+  "proposal_title": "Film Proposal Analysis",
+  "commercial_score": 59.35999870300292,
+  "attention_score": 45.58359682559967,
+  "composite": 53.84943795204162,
+  "confidence": "high",
+  "evidence": [
+    {
+      "claim": "Films featuring both 'hidden_conspiracy' and 'loss_of_innocence' motifs had a median ROI of 5.685x across 13 films.",
+      "sql_query": "SELECT motif_a, motif_b,       countMerge(sample_count) AS n_roi,       quantileMerge(0.5)(roi_median) AS roi_median,       countMerge(interest_sample_count) AS n_interest,       quantileMerge(0.5)(interest_pct_median) AS interest_median FROM mv_motif_pair_stats WHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence')    OR (motif_a = 'loss_of_innocence' AND motif_b = 'hidden_conspiracy') GROUP BY motif_a, motif_b HAVING n_roi >= 8",
+      "sample_count": 13,
+      "source_view": "mv_motif_pair_stats",
+      "value": 5.6850433349609375,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films featuring both 'hidden_conspiracy' and 'loss_of_innocence' motifs had a median interest cohort percentile of 0.741 across 13 films.",
+      "sql_query": "SELECT motif_a, motif_b,       countMerge(sample_count) AS n_roi,       quantileMerge(0.5)(roi_median) AS roi_median,       countMerge(interest_sample_count) AS n_interest,       quantileMerge(0.5)(interest_pct_median) AS interest_median FROM mv_motif_pair_stats WHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence')    OR (motif_a = 'loss_of_innocence' AND motif_b = 'hidden_conspiracy') GROUP BY motif_a, motif_b HAVING n_roi >= 8",
+      "sample_count": 13,
+      "source_view": "mv_motif_pair_stats",
+      "value": 0.7413249015808105,
+      "metric": "attention"
+    },
+    {
+      "claim": "Films featuring the 'caregiver' archetype had a median ROI of 2.968x across 151 films.",
+      "sql_query": "SELECT archetype,       countMerge(sample_count) AS n_roi,       quantileMerge(0.5)(roi_median) AS roi_median,       countMerge(interest_sample_count) AS n_interest,       quantileMerge(0.5)(interest_pct_median) AS interest_median FROM mv_archetype_performance WHERE archetype IN ('authority_figure', 'caregiver') GROUP BY archetype HAVING n_roi >= 8",
+      "sample_count": 151,
+      "source_view": "mv_archetype_performance",
+      "value": 2.9679999351501465,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films featuring the 'caregiver' archetype had a median interest cohort percentile of 0.453 across 142 films.",
+      "sql_query": "SELECT archetype,       countMerge(sample_count) AS n_roi,       quantileMerge(0.5)(roi_median) AS roi_median,       countMerge(interest_sample_count) AS n_interest,       quantileMerge(0.5)(interest_pct_median) AS interest_median FROM mv_archetype_performance WHERE archetype IN ('authority_figure', 'caregiver') GROUP BY archetype HAVING n_roi >= 8",
+      "sample_count": 142,
+      "source_view": "mv_archetype_performance",
+      "value": 0.4530743509531021,
+      "metric": "attention"
+    },
+    {
+      "claim": "Films featuring the 'authority_figure' archetype had a median ROI of 3.510x across 25 films.",
+      "sql_query": "SELECT archetype,       countMerge(sample_count) AS n_roi,       quantileMerge(0.5)(roi_median) AS roi_median,       countMerge(interest_sample_count) AS n_interest,       quantileMerge(0.5)(interest_pct_median) AS interest_median FROM mv_archetype_performance WHERE archetype IN ('authority_figure', 'caregiver') GROUP BY archetype HAVING n_roi >= 8",
+      "sample_count": 25,
+      "source_view": "mv_archetype_performance",
+      "value": 3.5104405879974365,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films featuring the 'authority_figure' archetype had a median interest cohort percentile of 0.418 across 22 films.",
+      "sql_query": "SELECT archetype,       countMerge(sample_count) AS n_roi,       quantileMerge(0.5)(roi_median) AS roi_median,       countMerge(interest_sample_count) AS n_interest,       quantileMerge(0.5)(interest_pct_median) AS interest_median FROM mv_archetype_performance WHERE archetype IN ('authority_figure', 'caregiver') GROUP BY archetype HAVING n_roi >= 8",
+      "sample_count": 22,
+      "source_view": "mv_archetype_performance",
+      "value": 0.4175257682800293,
+      "metric": "attention"
+    },
+    {
+      "claim": "Films featuring 'hidden_conspiracy' or 'loss_of_innocence' motifs and 'authority_figure' or 'caregiver' archetypes had a median ROI of 2.214x across 41 films.",
+      "sql_query": "SELECT count() AS n_roi,       quantile(0.5)(roi) AS roi_median,       quantile(0.75)(roi) AS roi_p75,       countIf(has_interest_signal) AS n_interest,       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median FROM films WHERE roi IS NOT NULL   AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence'))   AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'caregiver'))",
+      "sample_count": 41,
+      "source_view": "films",
+      "value": 2.2139601707458496,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films featuring 'hidden_conspiracy' or 'loss_of_innocence' motifs and 'authority_figure' or 'caregiver' archetypes had a median interest cohort percentile of 0.456 across 38 films.",
+      "sql_query": "SELECT count() AS n_roi,       quantile(0.5)(roi) AS roi_median,       quantile(0.75)(roi) AS roi_p75,       countIf(has_interest_signal) AS n_interest,       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median FROM films WHERE roi IS NOT NULL   AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence'))   AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'caregiver'))",
+      "sample_count": 38,
+      "source_view": "films",
+      "value": 0.4558359682559967,
+      "metric": "attention"
+    },
+    {
+      "claim": "Mid-budget films ($20M-$80M) featuring 'hidden_conspiracy' or 'loss_of_innocence' motifs and 'authority_figure' or 'caregiver' archetypes had a median ROI of 2.000x across 13 films.",
+      "sql_query": "SELECT count() AS n_roi,       quantile(0.5)(roi) AS roi_median,       quantile(0.75)(roi) AS roi_p75,       countIf(has_interest_signal) AS n_interest,       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median FROM films WHERE roi IS NOT NULL   AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence'))   AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'caregiver'))   AND (budget_usd >= 20000000 AND budget_usd < 80000000)",
+      "sample_count": 13,
+      "source_view": "films",
+      "value": 2.0,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Mid-budget films ($20M-$80M) featuring 'hidden_conspiracy' or 'loss_of_innocence' motifs and 'authority_figure' or 'caregiver' archetypes had a median interest cohort percentile of 0.557 across 12 films.",
+      "sql_query": "SELECT count() AS n_roi,       quantile(0.5)(roi) AS roi_median,       quantile(0.75)(roi) AS roi_p75,       countIf(has_interest_signal) AS n_interest,       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median FROM films WHERE roi IS NOT NULL   AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence'))   AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'caregiver'))   AND (budget_usd >= 20000000 AND budget_usd < 80000000)",
+      "sample_count": 12,
+      "source_view": "films",
+      "value": 0.5569583177566528,
+      "metric": "attention"
+    }
+  ],
+  "caveats": [
+    "Analogues were drawn from the mid budget band. The proposal has no budget of its own; this band was assumed for the comparison.",
+    "Analogues span 1990-2014 with no era filter. The dataset ends at 2014 because the plot corpus does, not because later films were excluded.",
+    "Attention reflects sustained Wikipedia lookups from 2015 onward, measured 1-25 years after release. It is not opening-weekend attention.",
+    "All analogue films were released between 1990 and 2014.",
+    "Interest figures measure sustained attention years after release, not opening reaction.",
+    "Applying a budget filter ($20M-$80M) reduced the sample size for the combined motif and archetype analysis from 41 to 13 films."
+  ]
+}

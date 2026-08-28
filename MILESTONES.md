@@ -257,20 +257,70 @@
 ### 8/31 一（3.5h）
 
 > **下一個 agent session**：從此任務開始；部署決策已鎖定於 `docs/M4_DEPLOYMENT_PROMPT.md`。
+> PredictAgent 詳細 task plan 見 `docs/M2_PREDICT_AGENT_PLAN.md`。
 
-- [ ] `PredictAgent`（對外稱 **Analogue / Evidence Scoring Agent**）：自主組裝查詢條件
-      （年份、預算區間、母題交集），檢索歷史類比案例
-- [ ] SQL 錯誤重試迴圈（最多 2 次）
+- [x] `AnalogueScoringRequest`（`app/contracts.py`）：proposal ＋ optional
+      `budget_band` / `release_bucket`，預設 demo 用 mid-budget、先不套年份。
+      `BUDGET_BANDS` 四段預算區間寫在 `app/config.py`，以 SQL predicate 形式
+      進入 agent 指令，不用散文描述
+- [x] `app/agents/predict.py`：`PredictAgent`（對外稱 **Analogue / Evidence Scoring Agent**）
+      factory；stage 1 tools 開啟、無 `output_schema`，自主組裝類比查詢條件；
+      stage 2 關 tools、`output_schema=AnalogueEvidenceBundle`
+- [x] `scripts/run_m2_predict_agent.py`：讀 `docs/m2-grounded-proposal.json`，
+      MCP `warm_up()` 後執行，輸出 `docs/m2-predict-agent-trace.log` 與
+      `docs/m2-prediction-score.json`
+- [x] SQL 錯誤與 guardrail failure 重試迴圈：`app/query_run.py` 記帳，
+      連續失敗滿 `SQL_RETRY_LIMIT + 1 = 3` 次即停並輸出 `insufficient_evidence`；
+      成功一次即歸零。護欄改為 `before_tool_callback`：違規查詢在送到
+      ClickHouse **之前**被擋下，錯誤原文回給模型當作重試材料
 
-**DoD**：能取回同類歷史作品的 ROI 分位數與 page-interest proxy 特徵。
+**DoD**：trace 內可見 Gemini 自主查詢 `mv_motif_pair_stats`、
+`mv_archetype_performance`、`films` 至少三個 surface，能取回同類歷史作品的
+ROI 分位數與 sustained-interest proxy，且重試次數受控 → **PASS**。
 
 ### 9/1 二（3.5h）
 
-- [ ] 可解釋評分邏輯：`commercial_score` ＋ `attention_score` → `composite`
-- [ ] `EvidenceItem` 填充：輸出 **historical-analogue evidence**，每個數字附帶產生它的 SQL
-- [ ] `insufficient_evidence` 分支（樣本數 < 8，不硬猜）
+- [x] Evidence extraction / validation（`app/analogue_scoring.py`）：
+      `sql_query` 必須是本輪真的跑過的查詢；`source_view` 對得上；
+      ROI 用 ROI count，interest 用 `interest_sample_count` /
+      `countIf(has_interest_signal)`；**每個 `value` 與 `sample_count` 都必須
+      出現在本輪某個 result payload 裡**
+- [x] 可解釋評分邏輯：從通過驗證的 evidence 呼叫 `app/scoring.py`，
+      得出 `commercial_score` ＋ `attention_score` → `composite`
+- [x] `PredictionScore` 填充：輸出 **historical-analogue evidence**，
+      每個數字附帶產生它的 SQL；模型寫的分數一律丟棄（收斂 schema
+      根本沒有分數欄位，所以不是靠指令約束）
+- [x] `insufficient_evidence` 分支（樣本數 < 8 或兩個維度都無 evidence，不硬猜）
 
-**DoD**：評分附帶完整的歷史類比證據列表，而非黑箱票房預測數字。
+**DoD**：評分附帶完整的歷史類比證據列表，而非黑箱票房預測數字 → **PASS**。
+
+驗收（2026-08-29，提前完成）：
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **84 passed**
+- `python3 -m compileall app scripts etl tests` → PASS
+- `./scripts/run_agent.sh scripts/run_m2_predict_agent.py` → **11/11 PASS**：
+  warm-up 3/3、8 次自主 tool call、三個 surface 全查到、0 錯誤 0 護欄攔截、
+  收斂階段 0 tool call、evidence 驗證通過、10 筆過門檻 evidence、
+  composite 由寫出的 JSON 重算一致
+
+**要記的三件事**：
+
+1. **分數在跨次執行之間不是固定值。** 三次驗收跑出 composite 60.36 / 59.07 /
+   53.85，因為挑哪些類比集合是模型自己決定的，每次選的切片不同。這不是 bug，
+   但 demo 不能講「這部片得 X 分」當成穩定事實；正確說法是「這一次檢索到的
+   類比集合算出 X 分，證據就在旁邊」。要穩定就得把檢索策略固定成 query
+   template（見 plan 的 kill criteria）。
+2. **`PredictionScore.evidence` 型別從 `EvidenceItem` 改成 `AnalogueEvidence`。**
+   Pydantic 依宣告型別序列化，用基底類別時 `metric` 欄位在寫檔時被丟掉，
+   結果是「可重算的分數」寫出來的 JSON 反而無法重算——分不出哪筆餵
+   commercial、哪筆餵 attention。runner 的重算檢查現在改成**讀回寫出的檔案**
+   再算，而不是拿記憶體裡的 bundle 算，否則這個 bug 會一直是綠燈。
+3. **`scripts/run_agent.sh` / `run_etl.sh` 加上 `--python-preference only-managed`。**
+   原本只 unset `CONDA_PREFIX` 不夠：uv 仍會從 PATH 挑到 miniconda 的 python，
+   而當那個 interpreter 已滿足所有 `--with` 條件時，uv 直接在那裡跑、不建 overlay。
+   miniconda base 有 google-adk 2.7.1 ＋ mcp 1.15.0，`mcp<2` 被 1.15.0 滿足，
+   於是 ADK 在 `from mcp import SamplingCapability` 掛掉。版本條件有滿足，
+   組合仍然是壞的。
 
 ### 9/2 三（3.5h）
 
