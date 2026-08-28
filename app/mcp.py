@@ -81,4 +81,56 @@ def build_clickhouse_tools() -> MCPToolset:
     )
 
 
-__all__ = ["build_clickhouse_tools", "CONNECT_TIMEOUT_SEC"]
+# Queries run before the agent starts. SELECT 1 wakes the service; the two
+# aggregates pull each view's parts into page cache. Kept cheap on purpose --
+# this is here to absorb a cold start, not to do work.
+WARM_UP_QUERIES = (
+    ("connectivity", "SELECT 1"),
+    ("mv_archetype_performance",
+     "SELECT countMerge(sample_count) AS n FROM mv_archetype_performance "
+     "GROUP BY archetype LIMIT 1"),
+    ("mv_motif_pair_stats",
+     "SELECT countMerge(sample_count) AS n FROM mv_motif_pair_stats "
+     "GROUP BY motif_a, motif_b LIMIT 1"),
+)
+
+
+async def warm_up(toolset: MCPToolset) -> list[tuple[str, float, bool]]:
+    """Run a few light queries so the agent's first call is not the cold one.
+
+    ClickHouse Cloud development tier idles, and the first query after that has
+    been measured at 32 seconds during M0. Paying it here costs a second of
+    startup instead of appearing as a stall in the demo, and it doubles as a
+    pre-flight: if the tools are broken, this fails before any model tokens are
+    spent rather than halfway through a run.
+
+    Goes through the MCP run_query tool rather than a direct client, so what
+    gets warmed is the path the agent actually uses.
+
+    Returns (label, elapsed_ms, ok) per query. Never raises -- a warm-up that
+    breaks the run it was meant to smooth would be worse than no warm-up.
+    """
+    import time
+
+    tools = {t.name: t for t in await toolset.get_tools()}
+    run_query = tools.get("run_query")
+    if run_query is None:
+        return [("run_query tool missing", 0.0, False)]
+
+    results: list[tuple[str, float, bool]] = []
+    for label, sql in WARM_UP_QUERIES:
+        started = time.monotonic()
+        try:
+            # tool_context is part of the ADK tool protocol and is unused by
+            # MCPTool for a call carrying no auth; None keeps this callable
+            # outside a Runner.
+            await run_query.run_async(args={"query": sql}, tool_context=None)
+            ok = True
+        except Exception:
+            ok = False
+        results.append((label, (time.monotonic() - started) * 1000, ok))
+    return results
+
+
+__all__ = ["build_clickhouse_tools", "warm_up", "WARM_UP_QUERIES",
+           "CONNECT_TIMEOUT_SEC"]

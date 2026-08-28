@@ -47,6 +47,12 @@ Report, in prose:
 - what the evidence does not support -- a combination you looked at and dropped
   for thin samples is a useful thing to state, not a failure to hide.
 
+Name a dropped combination ONLY if it appeared in a query you ran this session
+or in a result you received back. Do not write that something "showed a high ROI
+in initial searches" unless a result in this session shows it. A hedged sentence
+about a combination you did not query is still an invented finding, and it is
+harder to spot than an overclaim because it sounds careful.
+
 Use only vocabulary terms that appear in the controlled lists. A term outside
 them matches nothing, so a proposal built on one is empty however good it
 sounds."""

@@ -38,8 +38,9 @@ sys.path.insert(0, str(ROOT))
 from app.agents.recombine import build_recombine_phase_a_agent  # noqa: E402
 from app.config import MIN_SAMPLE_SIZE  # noqa: E402
 from app.env import load_env, redact  # noqa: E402
-from app.guardrails import inspect, is_error_response, violations  # noqa: E402
-from app.mcp import build_clickhouse_tools  # noqa: E402
+from app.guardrails import (  # noqa: E402
+    inspect, is_error_response, unsupported_terms, violations)
+from app.mcp import build_clickhouse_tools, warm_up  # noqa: E402
 
 TRACE_PATH = ROOT / "docs" / "m2-recombine-phase-a-trace.log"
 
@@ -103,6 +104,8 @@ async def main() -> int:
     responses = 0
     errors = 0
     queries: list[str] = []
+    response_payloads: list[str] = []
+    warm_failures: list[str] = []
     all_findings: list[tuple[str, object]] = []
     final_text: list[str] = []
 
@@ -118,6 +121,16 @@ async def main() -> int:
         tools = await toolset.get_tools()
         trace.write(f"tools discovered via MCP: {[t.name for t in tools]}")
         trace.write()
+
+        # Absorb the cold start before the model is involved, so a dev-tier
+        # wake-up does not show up as the agent stalling mid-demo.
+        trace.write("--- warm-up (pre-flight, not part of the agent run) ---")
+        for label, ms, ok in await warm_up(toolset):
+            trace.write(f"    {'ok  ' if ok else 'FAIL'} {ms:8.1f} ms  {label}")
+            if not ok:
+                warm_failures.append(label)
+        trace.write()
+
         trace.write(f"USER PROMPT: {args.prompt}")
         trace.write()
 
@@ -152,6 +165,7 @@ async def main() -> int:
                     responses += 1
                     payload = json.dumps(part.function_response.response,
                                          indent=2, default=str)
+                    response_payloads.append(payload)
                     is_error = is_error_response(payload)
                     errors += is_error
                     trace.write(f"--- FunctionResponse #{responses}"
@@ -178,10 +192,18 @@ async def main() -> int:
         hard = [f for _, f in all_findings if f.severity == "violation"]
         warn = [f for _, f in all_findings if f.severity == "warning"]
 
+        # Every term the agent could legitimately be citing: what it asked for,
+        # and what came back.
+        evidence_text = "\n".join(queries + response_payloads)
+        invented = unsupported_terms(synthesis, evidence_text)
+
         checks = [
+            (not warm_failures, "warm-up 全部成功（冷啟動已在 agent 之前吸收）",
+             "3/3 通過" if not warm_failures
+             else f"失敗：{', '.join(warm_failures)}"),
             (calls >= 2, "至少 2 次 Gemini 自己決定的 tool call", f"{calls} 次"),
-            (responses >= 2, "至少 2 次成功的 ClickHouse 回應",
-             f"{responses} 次回應，其中錯誤 {errors} 次"),
+            (responses - errors >= 2, "至少 2 次成功的 ClickHouse 回應",
+             f"{responses} 次回應，扣掉 {errors} 次錯誤後 {responses - errors} 次成功"),
             (len(mv_queries) >= 1, "至少一次查詢打到 materialized view",
              f"{len(mv_queries)}/{len(queries)} 個查詢用到 mv_"),
             (bool(synthesis.strip()), "有最終文字綜述",
@@ -192,6 +214,9 @@ async def main() -> int:
             (not hard, "沒有查詢護欄違規",
              "無" if not hard else
              "; ".join(f"{f.rule}" for f in hard)),
+            (not invented, "綜述中的詞彙都有查詢或結果支撐",
+             "無憑空出現的詞彙" if not invented else
+             f"未被任何查詢或結果支撐：{', '.join(invented)}"),
         ]
 
         trace.write("=== Phase A DoD ===")

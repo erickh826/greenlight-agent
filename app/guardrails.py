@@ -24,7 +24,12 @@ the checks, not permission.
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "etl"))
+from vocab import ARCHETYPES, MOTIFS  # noqa: E402
 
 # Written out of the schema during M1. A query naming any of these was written
 # from the model's memory of an older spec, not from the DDL it was given.
@@ -165,6 +170,44 @@ def is_error_response(payload: str) -> bool:
                 or "db::exception" in low)
 
 
+def unsupported_terms(synthesis: str, evidence_text: str) -> list[str]:
+    """Vocabulary terms asserted in prose that no query or result mentions.
+
+    This catches the failure the whole project is built to avoid. In the first
+    Phase A run the agent wrote that `impossible_heist` with `redemption`
+    "showed a very high ROI in initial broad searches, but it was found to have
+    fewer than 8 samples" -- and neither term appears in any query it ran or any
+    result it received. The sentence is plausible, correctly hedged, and
+    entirely invented.
+
+    A claim about a combination is only worth anything if the rows behind it
+    were actually fetched, so a term that appears only in the summary is
+    reported as unsupported. Comparing against the closed vocabulary keeps this
+    specific: these are exact tokens like `impossible_heist`, not English words
+    the model might reasonably use in passing.
+    """
+    haystack = evidence_text.lower()
+    prose = synthesis.lower()
+
+    unsupported = []
+    for term in set(MOTIFS) | set(ARCHETYPES):
+        if term in haystack:
+            continue
+        # Half the vocabulary is also ordinary English -- "revenge",
+        # "survival", "redemption". A model writing "a story of redemption" is
+        # not citing a tag, and flagging it would mean flagging correct prose.
+        # So a bare single word only counts when it is marked as a citation
+        # (backticks or quotes), while an underscored token like
+        # `impossible_heist` is unambiguous however it is written.
+        if "_" in term:
+            found = re.search(rf"\b{re.escape(term)}\b", prose)
+        else:
+            found = re.search(rf"[`\'\"]{re.escape(term)}[`\'\"]", prose)
+        if found:
+            unsupported.append(term)
+    return sorted(unsupported)
+
+
 def violations(findings: list[Finding]) -> list[Finding]:
     return [f for f in findings if f.severity == SEVERITY_VIOLATION]
 
@@ -176,5 +219,5 @@ def summarise(findings: list[Finding]) -> str:
 
 
 __all__ = ["Finding", "inspect", "violations", "summarise", "normalise",
-           "is_error_response",
+           "is_error_response", "unsupported_terms",
            "REMOVED_NAMES", "SEVERITY_VIOLATION", "SEVERITY_WARNING"]

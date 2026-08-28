@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "etl"))
 
 from app.guardrails import (  # noqa: E402
     SEVERITY_VIOLATION, SEVERITY_WARNING, inspect, is_error_response,
-    violations)
+    unsupported_terms, violations)
 
 
 def rules(sql: str) -> set[str]:
@@ -172,3 +172,46 @@ def test_clickhouse_error_text_without_the_flag_is_caught():
     assert is_error_response(
         '{"content": [{"text": "Code: 60. DB::Exception: Table not found"}]}'
     ) is True
+
+
+# --- claims must trace back to a query --------------------------------------
+# From the first Phase A run: the agent wrote that impossible_heist with
+# redemption "showed a very high ROI in initial broad searches" and fell under
+# the sample floor. Neither term appears in any query it ran or any result it
+# got back. Plausible, hedged, and invented.
+
+def test_term_never_queried_is_unsupported():
+    synthesis = ("The combination of `impossible_heist` and `redemption` "
+                 "showed a very high ROI in initial broad searches.")
+    evidence = "SELECT motif_a FROM mv_motif_pair_stats WHERE motif_a='revenge'"
+    assert unsupported_terms(synthesis, evidence) == ["impossible_heist",
+                                                      "redemption"]  # both cited
+
+
+def test_term_present_in_a_result_is_supported():
+    synthesis = "The pair `rise_and_fall` and `sacrifice_for_others` looks good."
+    evidence = ('{"rows": [["rise_and_fall", "sacrifice_for_others", 9, 3.58]]}')
+    assert unsupported_terms(synthesis, evidence) == []
+
+
+def test_term_present_only_in_the_query_is_supported():
+    """Querying it and getting nothing back is still evidence of having looked."""
+    synthesis = "I checked `impossible_heist` and it was too thin."
+    evidence = "SELECT * FROM mv_motif_pair_stats WHERE motif_a='impossible_heist'"
+    assert unsupported_terms(synthesis, evidence) == []
+
+
+def test_bare_english_words_are_not_treated_as_citations():
+    """Half the vocabulary is also ordinary English.
+
+    "a story of redemption" is prose, not a claim about the `redemption` tag,
+    and flagging it would mean flagging correct writing. A bare single word
+    counts only when marked as a citation; an underscored token always does.
+    """
+    assert unsupported_terms(
+        "The film is about revenge and survival in a broad sense.", "") == []
+    assert unsupported_terms("A story of loss and redemption arcs.", "") == []
+    assert unsupported_terms("Films tagged `redemption` returned 2.4x.", "") == [
+        "redemption"]
+    assert unsupported_terms("The rise_and_fall shape did well.", "") == [
+        "rise_and_fall"]
