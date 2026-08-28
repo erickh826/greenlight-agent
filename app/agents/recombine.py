@@ -16,7 +16,7 @@ from __future__ import annotations
 from google.adk.agents import Agent
 from google.genai import types
 
-from app.config import MIN_SAMPLE_SIZE
+from app.config import MIN_SAMPLE_SIZE, WILDCARD_TEMPERATURE
 from app.contracts import TreatmentProposal
 from app.prompts import analyst_system_instruction
 
@@ -72,7 +72,8 @@ Use this policy:
 
 1. Pick one proposal whose motif_tags, character_archetypes and rationale are
    supported by terms that appeared in a Phase A query or result.
-2. Set variant to "grounded". The wildcard branch is not active yet.
+2. Set variant to "grounded". The wildcard branch is a separate call
+   and is not your concern here.
 3. Every evidence item must point back to the Phase A transcript:
    - copy the SQL query verbatim into sql_query;
    - set source_view to the table or materialized view read by that query;
@@ -88,6 +89,41 @@ If the transcript is too thin for a field, choose a broader supported field from
 the transcript. Do not invent a near-synonym, a new vocabulary term, a later
 release era, or an unqueried combination just to make the premise sound better.
 """
+
+
+PHASE_B_WILDCARD_TASK = f"""YOUR TASK
+
+Turn the Phase A transcript the user provides into exactly one wildcard
+TreatmentProposal.
+
+The wildcard exists as a control. The grounded proposal takes what the data
+rewards; this one deliberately takes a combination the transcript gives no
+support for, so that the scoring can be seen to distinguish them. If the
+wildcard scored as well as the grounded proposal every time, the score would be
+measuring nothing.
+
+Tools are disabled. Do not claim you ran a query.
+
+Use this policy:
+
+1. Set variant to "wildcard".
+2. Choose motif_tags and character_archetypes from the controlled vocabulary
+   that the Phase A transcript did NOT show performing well -- a pair it never
+   returned, or one it returned with thin samples or a weak figure. Say which,
+   in the rationale.
+3. Be honest in the evidence list rather than generous. Cite only figures the
+   transcript actually contains, copying sql_query verbatim, and cite the ones
+   that argue AGAINST this premise if that is what the transcript holds. An
+   empty evidence list is a valid and honest answer for a combination the
+   transcript never measured; an invented supporting figure is not.
+4. The premise may be strange. The vocabulary may not: a term outside the
+   controlled lists matches no row, so a wildcard built on one is not a risky
+   bet, it is an empty one.
+5. The logline must be one sentence and no more than 200 characters.
+
+Write it as a film someone would actually want to see. "Unsupported by the data"
+is a statement about the historical record, not permission to write something
+incoherent."""
 
 
 def build_recombine_phase_a_agent(model: str, toolset) -> Agent:
@@ -117,9 +153,33 @@ def build_recombine_phase_b_grounded_agent(model: str) -> Agent:
     )
 
 
+def build_recombine_phase_b_wildcard_agent(model: str) -> Agent:
+    """Phase B, the control branch: same schema, deliberately unsupported.
+
+    Temperature is WILDCARD_TEMPERATURE rather than the grounded branch's 0.2.
+    The grounded proposal wants the most defensible reading of the evidence and
+    a low temperature gets it; this one wants a combination the evidence does
+    not point at, and asking for that at 0.2 tends to produce the second-best
+    grounded answer instead of a genuine outlier.
+    """
+    return Agent(
+        name="recombine_phase_b_wildcard",
+        model=model,
+        instruction=(
+            f"{analyst_system_instruction()}\n\n{PHASE_B_WILDCARD_TASK}"
+        ),
+        tools=[],
+        output_schema=TreatmentProposal,
+        generate_content_config=types.GenerateContentConfig(
+            temperature=WILDCARD_TEMPERATURE),
+    )
+
+
 __all__ = [
     "build_recombine_phase_a_agent",
     "build_recombine_phase_b_grounded_agent",
+    "build_recombine_phase_b_wildcard_agent",
     "PHASE_A_TASK",
     "PHASE_B_GROUNDED_TASK",
+    "PHASE_B_WILDCARD_TASK",
 ]

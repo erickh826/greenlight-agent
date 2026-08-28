@@ -27,7 +27,8 @@ from app.config import MIN_SAMPLE_SIZE
 from app.contracts import (
     AnalogueEvidence, AnalogueEvidenceBundle, PredictionScore)
 from app.guardrails import inspect, violations
-from app.proposal_validation import canonical_sql, source_names
+from app.proposal_validation import (
+    canonical_sql, primary_source, source_names)
 from app.scoring import score_from_evidence
 
 NUMBER = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
@@ -75,6 +76,41 @@ def seen_exactly(value: int, numbers: Iterable[float]) -> bool:
     median would let a two-digit count drift by six.
     """
     return any(candidate == value for candidate in numbers)
+
+
+def resolve_bundle(bundle: AnalogueEvidenceBundle,
+                   queries: list[str]) -> tuple[list[AnalogueEvidence],
+                                                list[str]]:
+    """Attach the real SQL to each cited figure. (evidence, errors).
+
+    The model cites a query by its number in the transcript; the text comes from
+    `queries`, which is what the agent actually sent. So sql_query is verbatim
+    by construction rather than by instruction, and source_view is derived from
+    that SQL instead of being a second thing the model could get wrong.
+
+    An index outside the transcript is the one failure left, and it is an error
+    rather than a silent drop: a figure attributed to a query that does not
+    exist is exactly the citation this pipeline refuses to publish.
+    """
+    evidence: list[AnalogueEvidence] = []
+    errors: list[str] = []
+
+    for position, draft in enumerate(bundle.evidence, start=1):
+        if not 1 <= draft.query_index <= len(queries):
+            errors.append(
+                f"evidence[{position}] cites QUERY {draft.query_index}, but "
+                f"this run made {len(queries)} successful queries")
+            continue
+        sql = queries[draft.query_index - 1]
+        evidence.append(AnalogueEvidence(
+            claim=draft.claim,
+            sql_query=sql,
+            sample_count=draft.sample_count,
+            source_view=primary_source(sql),
+            value=draft.value,
+            metric=draft.metric,
+        ))
+    return evidence, errors
 
 
 def validate_analogue_evidence(
@@ -160,13 +196,18 @@ def partition(evidence: list[AnalogueEvidence]
 
 
 def score_bundle(bundle: AnalogueEvidenceBundle,
+                 evidence: list[AnalogueEvidence],
                  extra_caveats: Iterable[str] = ()) -> PredictionScore:
     """The only place a PredictionScore is built.
+
+    Takes the resolved evidence rather than reading it off the bundle: what the
+    bundle holds is the model's citations, and what gets scored is those
+    citations after resolve_bundle has attached the SQL that was really run.
 
     Whatever the model said about how well this proposal would do is not an
     input here. The inputs are the evidence list and SCORING_WEIGHTS.
     """
-    roi_items, interest_items = partition(bundle.evidence)
+    roi_items, interest_items = partition(evidence)
     commercial, attention, composite, confidence, caveats = score_from_evidence(
         list(roi_items), list(interest_items))
 
@@ -176,7 +217,7 @@ def score_bundle(bundle: AnalogueEvidenceBundle,
         attention_score=attention,
         composite=composite,
         confidence=confidence,
-        evidence=list(bundle.evidence),
+        evidence=list(evidence),
         caveats=[*extra_caveats, *caveats, *bundle.caveats],
     )
 
@@ -223,7 +264,7 @@ def comparison_caveats(budget_band: str | None,
 
 
 __all__ = [
-    "result_numbers", "seen", "seen_exactly",
+    "result_numbers", "seen", "seen_exactly", "resolve_bundle",
     "validate_analogue_evidence", "partition",
     "score_bundle", "insufficient_evidence", "comparison_caveats",
     "VALUE_TOLERANCE", "MIN_SAMPLE_SIZE",

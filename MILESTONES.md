@@ -239,7 +239,7 @@
       `docs/m2-recombine-phase-a-trace.log`，不建立 MCP toolset，
       輸出 `docs/m2-recombine-phase-b-grounded-trace.log` 與
       `docs/m2-grounded-proposal.json`
-- [ ] 彩蛋分支：一次 `temperature=1.5` 額外呼叫
+- [x] 彩蛋分支：一次 `temperature=1.5` 額外呼叫（2026-08-29 完成，見 9/2 區塊）
 
 **DoD（grounded-only thin slice）**：輸出一個 `TreatmentProposal`，且全程無 tool call
 → **PASS**。
@@ -252,7 +252,8 @@
   tool call **0**、tool response **0**、`TreatmentProposal` parse **PASS**、
   `variant=grounded`、evidence grounding **PASS**
 
-原週末完整 DoD（grounded ＋ wildcard 兩個 `TreatmentProposal`）仍待 wildcard 分支完成。
+原週末完整 DoD（grounded ＋ wildcard 兩個 `TreatmentProposal`）已於 2026-08-29
+隨 root 編排一併達成，驗收數據見 9/2 區塊。
 
 ### 8/31 一（3.5h）
 
@@ -299,17 +300,17 @@ ROI 分位數與 sustained-interest proxy，且重試次數受控 → **PASS**�
 - `./scripts/run_etl.sh -m pytest tests -q` → **84 passed**
 - `python3 -m compileall app scripts etl tests` → PASS
 - `./scripts/run_agent.sh scripts/run_m2_predict_agent.py` → **11/11 PASS**：
-  warm-up 3/3、8 次自主 tool call、三個 surface 全查到、0 錯誤 0 護欄攔截、
-  收斂階段 0 tool call、evidence 驗證通過、10 筆過門檻 evidence、
-  composite 由寫出的 JSON 重算一致
+  warm-up 3/3、11 次自主 tool call、三個 surface 全查到、0 錯誤 0 護欄攔截、
+  收斂階段 0 tool call、evidence 驗證通過、9 筆過門檻 evidence、
+  composite 由寫出的 JSON 重算一致（本輪 composite **62.33**）
 
 **要記的三件事**：
 
-1. **分數在跨次執行之間不是固定值。** 三次驗收跑出 composite 60.36 / 59.07 /
-   53.85，因為挑哪些類比集合是模型自己決定的，每次選的切片不同。這不是 bug，
-   但 demo 不能講「這部片得 X 分」當成穩定事實；正確說法是「這一次檢索到的
-   類比集合算出 X 分，證據就在旁邊」。要穩定就得把檢索策略固定成 query
-   template（見 plan 的 kill criteria）。
+1. **分數在跨次執行之間不是固定值。** 驗收跑出過 composite 60.36 / 59.07 /
+   53.85 / 62.33，因為挑哪些類比集合是模型自己決定的，每次選的切片不同。
+   這不是 bug，但 demo 不能講「這部片得 X 分」當成穩定事實；正確說法是
+   「這一次檢索到的類比集合算出 X 分，證據就在旁邊」。要穩定就得把檢索策略
+   固定成 query template（見 plan 的 kill criteria）。
 2. **`PredictionScore.evidence` 型別從 `EvidenceItem` 改成 `AnalogueEvidence`。**
    Pydantic 依宣告型別序列化，用基底類別時 `metric` 欄位在寫檔時被丟掉，
    結果是「可重算的分數」寫出來的 JSON 反而無法重算——分不出哪筆餵
@@ -324,11 +325,60 @@ ROI 分位數與 sustained-interest proxy，且重試次數受控 → **PASS**�
 
 ### 9/2 三（3.5h）
 
-- [ ] Root Agent 編排（`SequentialAgent`）
-- [ ] 端到端 CLI 跑通
-- [ ] 結構化 log 輸出
+- [x] Root Agent 編排（`app/pipeline.py`）
+- [x] 端到端 CLI 跑通（`scripts/run_greenlight.py`）
+- [x] 結構化 log 輸出（`docs/m2-greenlight-events.jsonl`，走 `InProcessEventBus`）
+- [x] 彩蛋分支：`temperature=1.5` 的 wildcard（原列在 8/29–8/30，一併完成）
 
-**DoD**：一次執行輸出雙方案 JSON ＋ 完整 tool call trace。
+**DoD**：一次執行輸出雙方案 JSON ＋ 完整 tool call trace → **PASS**。
+
+驗收（2026-08-29，提前完成）：
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **87 passed**
+- `python3 -m compileall app scripts etl tests` → PASS
+- `./scripts/run_agent.sh scripts/run_greenlight.py` → **12/12 PASS**：
+  Phase A 7 次自主查詢、兩個方案都通過驗證與評分、31/31 個 `tool_call`
+  事件都帶 SQL 原文、SSE 需要的事件型別齊全、狀態機停在 `awaiting_approval`、
+  總計 31 次 tool call / 0 SQL 錯誤 / 0 護欄攔截 / 236s
+
+**沒有用 `SequentialAgent`，理由要記下來**：`SequentialAgent` 把 sub-agent 串在
+同一個 invocation 和同一個 session 裡。這條 pipeline 不是「一串模型呼叫」，是
+「模型呼叫中間夾決策」——Phase B 的輸出要先 parse 和驗證才准往下用；一個 variant
+失敗不該中止整條流程；分數由 `app/scoring.py` 算，根本不是 agent 能當的一步。
+ADK 對這種形狀的官方答案是自訂 `BaseAgent` 而不是 `SequentialAgent`，但自訂
+`BaseAgent` 會把 sub-agent 放回同一個 session——那正是 Phase B 不能有的東西：
+Phase B 沒有 tools，它必須把 Phase A trace 當成「引用的資料」，不是「自己可以續寫
+的對話歷史」。給它那段歷史，就是一個「無工具」階段開始描述自己跑過的查詢的起點。
+所以每個 stage 各自 `Runner` ＋ 各自 session，交接用明確的 transcript；事件照樣
+全部進同一條 bus，SSE 看到的仍是一條連續的 run。
+
+**三個實測發現**：
+
+1. **彩蛋方案方向正確但區隔力偏弱。** grounded 56.7 / wildcard 47.9，差 8.8 分。
+   方向對（資料不支持的組合分數較低），但兩邊 confidence 都是 high，說服力有限。
+   原因看得出來：PredictAgent 的 film-level 查詢用寬鬆交集（motif 至少中一個
+   **OR**、archetype 至少中一個），而 wildcard 挑了 4 motif ＋ 3 archetype、
+   grounded 只有 2 ＋ 2——OR 的項越多，類比集合越大越通用，分數越往全體中位數回歸。
+   要真正拉開區隔得把項數正規化或改交集權重，那會動到評分語意，賽前不動。
+   **值得記的是 wildcard 的 proposal evidence 是 0 筆**——它照指示誠實回報
+   「transcript 沒量過這個組合」，而不是硬湊一筆支持證據。
+2. **`response_schema` 不保證 `maxLength`。** Gemini 會遵守 shape 和 enum，
+   但不遵守字串長度上限：有一輪 logline 寫了 214 字元，回來是合法 JSON，
+   然後被 pydantic 擋掉，整個 grounded variant 就沒了，而 wildcard 在旁邊跑完。
+   Phase B 現在有重試（和 SQL 同一個預算 `SQL_RETRY_LIMIT + 1`），
+   而且把 validation error 原文回給模型——講「logline 最多 200 字元」它會改，
+   只講「再試一次」它會寫出另一個一樣過長的。
+3. **不要叫模型抄 SQL。** 收斂階段原本要求把查詢逐字複製進 `sql_query`，
+   多數時候會照做，但有一輪它把 `budget_usd >= 20000000 AND budget_usd < 80000000`
+   自己加了一層括號——語意相同、字面不同，grounding 檢查直接拒絕，
+   一筆背後有 133 部片的證據就這樣掉成 `insufficient_evidence`。
+   現在 transcript 幫每個查詢編號，模型只回報 `query_index`，SQL 由 Python 從
+   `QueryRun.queries` 貼回去，`source_view` 也由 SQL 推導。
+   模型沒打過的字串，它就沒辦法改寫。
+
+**順帶記一筆**：這輪 grounded 方案的 archetype 用到 `reluctant_hero`，
+就是那個同時存在於 motif 和 archetype 的 P1 詞彙重疊。用在這裡語意沒問題，
+但它確實會出現在 demo 產物裡，賽後清詞彙邊界時記得。
 
 ### ⛔ Kill Criteria
 

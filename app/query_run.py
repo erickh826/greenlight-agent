@@ -10,6 +10,8 @@ The runner keeps the ADK plumbing and the trace writing. This keeps the counts.
 
 from __future__ import annotations
 
+import json
+
 from app.config import SQL_RETRY_LIMIT
 from app.guardrails import Finding, inspect, is_error_response, violations
 
@@ -43,6 +45,48 @@ def guardrail_refusal(sql: str) -> tuple[dict, list[Finding]] | None:
                  "ClickHouse. Fix and retry: "
                  + " | ".join(f"{f.rule}: {f.detail}" for f in bad),
     }, bad
+
+
+def parse_result(response: dict | None) -> tuple[list[str], list[list]] | None:
+    """(columns, rows) out of an mcp-clickhouse run_query response.
+
+    The payload nests the interesting part twice: the MCP envelope carries a
+    text block, and that text is itself JSON of the form
+    {"columns": [...], "rows": [[...]]}. Pulling it apart means the SSE
+    tool_result event can carry a real row count and a preview instead of a
+    length-of-string guess.
+
+    Returns None for anything that is not a result set -- an error, a
+    list_tables call, a shape mcp-clickhouse changes later. Callers treat that
+    as "no rows to report", never as zero rows.
+    """
+    if not isinstance(response, dict):
+        return None
+
+    text = None
+    structured = response.get("structuredContent")
+    if isinstance(structured, dict) and isinstance(structured.get("result"), str):
+        text = structured["result"]
+    else:
+        for block in response.get("content") or []:
+            if isinstance(block, dict) and isinstance(block.get("text"), str):
+                text = block["text"]
+                break
+    if text is None:
+        return None
+
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+
+    columns = parsed.get("columns")
+    rows = parsed.get("rows")
+    if not isinstance(columns, list) or not isinstance(rows, list):
+        return None
+    return [str(c) for c in columns], rows
 
 
 class QueryRun:
@@ -118,4 +162,5 @@ class QueryRun:
         return "\n\n".join(blocks)
 
 
-__all__ = ["QueryRun", "extract_sql", "guardrail_refusal", "SQL_ARG_KEYS"]
+__all__ = ["QueryRun", "extract_sql", "guardrail_refusal", "parse_result",
+           "SQL_ARG_KEYS"]

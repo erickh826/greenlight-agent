@@ -171,6 +171,30 @@ class AnalogueScoringRequest(BaseModel):
     target_release_bucket: ReleaseBucket | None = None
 
 
+class AnalogueEvidenceDraft(BaseModel):
+    """One figure the convergence step claims, citing the query by number.
+
+    Deliberately has no sql_query field. The first version asked the model to
+    copy the query verbatim out of the transcript, and it mostly did -- then on
+    one run it reformatted a WHERE clause, wrapping `budget_usd >= 20000000 AND
+    budget_usd < 80000000` in its own parentheses. Semantically identical,
+    textually different, so the grounding check rejected it and a score with
+    133 real films behind it collapsed to insufficient_evidence.
+
+    Transcription is not a job for a model. The transcript numbers its queries;
+    the model says which one produced the figure, and app/analogue_scoring.py
+    substitutes the text. A query it never types is a query it cannot
+    paraphrase, and the citation becomes exact rather than nearly right.
+    """
+
+    claim: str = Field(description="What the number says, in one sentence")
+    query_index: int = Field(
+        ge=1, description="Which QUERY n in the transcript produced it")
+    sample_count: int = Field(ge=0)
+    value: float = Field(description="The figure itself, copied exactly")
+    metric: Literal["commercial", "attention"]
+
+
 class AnalogueEvidenceBundle(BaseModel):
     """The convergence step's output: evidence only, deliberately no scores.
 
@@ -180,11 +204,51 @@ class AnalogueEvidenceBundle(BaseModel):
     """
 
     proposal_title: str
-    evidence: list[AnalogueEvidence]
+    evidence: list[AnalogueEvidenceDraft]
     caveats: list[str] = Field(
         default_factory=list,
         description="Limits of this comparison in prose. No numbers that are "
                     "not already in an evidence item.")
+
+
+class VariantOutcome(BaseModel):
+    """One proposal and what scoring made of it.
+
+    proposal and score are both nullable and independently so. A variant whose
+    Phase B output failed validation has neither; a variant that produced a
+    proposal the database could not find comparables for has a proposal and a
+    score of confidence insufficient_evidence. Collapsing the two into one
+    "failed" flag would hide which of the pipeline's halves went wrong.
+    """
+
+    variant: Literal["grounded", "wildcard"]
+    proposal: TreatmentProposal | None = None
+    score: PredictionScore | None = None
+    validation_errors: list[str] = Field(default_factory=list)
+
+
+class GreenlightRunResult(BaseModel):
+    """One end-to-end run: the document the CLI writes and the API returns.
+
+    Deliberately carries the counters as well as the output. "Gemini queried
+    ClickHouse at runtime" is the claim the whole project rests on, and a result
+    file that shows only the finished proposals cannot distinguish a real run
+    from a cached one.
+    """
+
+    run_id: str
+    prompt: str
+    model: str
+    started_at: float
+    finished_at: float
+    outcomes: list[VariantOutcome]
+    tool_calls: int = 0
+    sql_errors: int = 0
+    guardrail_blocks: int = 0
+
+    @property
+    def elapsed_sec(self) -> float:
+        return self.finished_at - self.started_at
 
 
 class SceneAsset(BaseModel):
@@ -199,5 +263,7 @@ __all__ = [
     "Motif", "Archetype", "ActStructure", "ConflictScale", "ReleaseBucket",
     "EvidenceItem", "FilmMotifs", "TreatmentProposal", "PredictionScore",
     "BudgetBand", "AnalogueScoringRequest", "AnalogueEvidence",
-    "AnalogueEvidenceBundle", "SceneAsset",
+    "AnalogueEvidenceDraft", "AnalogueEvidenceBundle",
+    "VariantOutcome", "GreenlightRunResult",
+    "SceneAsset",
 ]

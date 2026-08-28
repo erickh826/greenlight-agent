@@ -96,16 +96,17 @@ Tools are disabled. Every figure must already appear in the transcript; a number
 not returned by one of those queries cannot go in the bundle, however reasonable
 it looks.
 
-For each evidence item:
+Each query in the transcript is numbered. For each evidence item:
 
+- query_index is that number -- QUERY 3 is query_index 3. You do not copy the
+  SQL; it is attached from the transcript by its number, so cite the number and
+  nothing else. An index for a query that is not there is a failed citation.
 - metric is "commercial" for an ROI figure, "attention" for an interest one;
 - value is the figure itself, copied exactly as the result gave it -- do not
   round it, and do not convert it to a 0-100 score;
 - sample_count is the count from the SAME result row: the ROI row count for a
   commercial item, interest_sample_count or countIf(has_interest_signal) for an
   attention item;
-- sql_query is the query that produced it, copied verbatim from the transcript;
-- source_view is the table or view that query reads;
 - claim states in one sentence what the number says, including which comparable
   set it describes.
 

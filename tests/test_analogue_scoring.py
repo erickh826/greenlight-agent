@@ -17,11 +17,13 @@ sys.path.insert(0, str(ROOT / "etl"))
 
 from app import scoring  # noqa: E402
 from app.analogue_scoring import (  # noqa: E402
-    comparison_caveats, insufficient_evidence, partition, result_numbers,
-    score_bundle, seen, seen_exactly, validate_analogue_evidence)
+    comparison_caveats, insufficient_evidence, partition, resolve_bundle,
+    result_numbers, score_bundle, seen, seen_exactly,
+    validate_analogue_evidence)
 from app.config import BUDGET_BANDS, MIN_SAMPLE_SIZE  # noqa: E402
 from app.contracts import (  # noqa: E402
-    AnalogueEvidence, AnalogueEvidenceBundle, PredictionScore)
+    AnalogueEvidence, AnalogueEvidenceBundle, AnalogueEvidenceDraft,
+    PredictionScore)
 
 ROI_SQL = (
     "SELECT archetype, countMerge(sample_count) AS n_roi, "
@@ -149,15 +151,61 @@ def test_empty_bundle_fails():
 
 # --- scoring is arithmetic over what survived -------------------------------
 
-def bundle(items, caveats=()) -> AnalogueEvidenceBundle:
+def draft(metric: str, value: float, n: int,
+          query_index: int = 1) -> AnalogueEvidenceDraft:
+    return AnalogueEvidenceDraft(claim=f"{metric} figure {value}",
+                                 query_index=query_index, sample_count=n,
+                                 value=value, metric=metric)
+
+
+def bundle(drafts, caveats=()) -> AnalogueEvidenceBundle:
     return AnalogueEvidenceBundle(proposal_title="The Unveiling",
-                                  evidence=list(items),
+                                  evidence=list(drafts),
                                   caveats=list(caveats))
 
 
+def scored(drafts, queries=(ROI_SQL,), caveats=(), extra=()):
+    """resolve -> score, the order the pipeline uses."""
+    b = bundle(drafts, caveats)
+    evidence, errors = resolve_bundle(b, list(queries))
+    assert errors == []
+    return score_bundle(b, evidence, extra_caveats=extra)
+
+
+# --- citation by index, not by transcription --------------------------------
+
+def test_resolve_attaches_the_sql_that_was_actually_run():
+    """The model never types the SQL, so it cannot paraphrase it.
+
+    This is the failure that motivated query_index: a convergence pass copied a
+    real query but wrapped one WHERE clause in its own parentheses, and the
+    grounding check rejected a figure standing on 133 films.
+    """
+    evidence, errors = resolve_bundle(
+        bundle([draft("commercial", 3.51, 25, query_index=2)]),
+        ["SELECT 1", ROI_SQL])
+    assert errors == []
+    assert evidence[0].sql_query == ROI_SQL
+    assert evidence[0].source_view == "mv_archetype_performance"
+
+
+def test_source_view_is_derived_not_asked_for():
+    films_sql = ("SELECT count() AS n_roi, quantile(0.5)(roi) AS roi_median "
+                 "FROM films WHERE roi IS NOT NULL")
+    evidence, _ = resolve_bundle(bundle([draft("commercial", 2.4, 30)]),
+                                 [films_sql])
+    assert evidence[0].source_view == "films"
+
+
+def test_index_outside_the_transcript_is_a_failed_citation():
+    evidence, errors = resolve_bundle(
+        bundle([draft("commercial", 3.51, 25, query_index=7)]), [ROI_SQL])
+    assert evidence == []
+    assert any("QUERY 7" in e for e in errors)
+
+
 def test_composite_recomputes_from_the_evidence_it_lists():
-    items = [ev("commercial", 2.4, 30), ev("attention", 0.62, 30)]
-    score = score_bundle(bundle(items))
+    score = scored([draft("commercial", 2.4, 30), draft("attention", 0.62, 30)])
     roi, interest = partition(score.evidence)
     expected = scoring.score_from_evidence(roi, interest)[:3]
     assert (score.commercial_score, score.attention_score,
@@ -165,31 +213,31 @@ def test_composite_recomputes_from_the_evidence_it_lists():
 
 
 def test_below_floor_evidence_is_excluded_not_rejected():
-    thin = ev("attention", 0.9, MIN_SAMPLE_SIZE - 1)
-    score = score_bundle(bundle([ev("commercial", 2.4, 30), thin]))
+    score = scored([draft("commercial", 2.4, 30),
+                    draft("attention", 0.9, MIN_SAMPLE_SIZE - 1)])
     assert score.attention_score is None
-    assert thin in score.evidence          # still shown
+    assert len(score.evidence) == 2        # the thin one is still shown
     assert any("discarded" in c for c in score.caveats)
 
 
 def test_missing_attention_is_none_not_zero():
-    score = score_bundle(bundle([ev("commercial", 2.4, 30)]))
+    score = scored([draft("commercial", 2.4, 30)])
     assert score.attention_score is None
     assert score.composite == scoring.roi_to_score(2.4)
     assert score.confidence != "high"
 
 
 def test_no_usable_evidence_is_insufficient_evidence():
-    score = score_bundle(bundle([ev("commercial", 2.4, 1)]))
+    score = scored([draft("commercial", 2.4, 1)])
     assert score.confidence == "insufficient_evidence"
     assert (score.commercial_score, score.attention_score,
             score.composite) == (None, None, None)
 
 
 def test_model_caveats_are_appended_not_substituted():
-    score = score_bundle(bundle([ev("commercial", 2.4, 30)],
-                                caveats=["Analogues skew pre-2000."]),
-                         extra_caveats=["Budget band: mid."])
+    score = scored([draft("commercial", 2.4, 30)],
+                   caveats=["Analogues skew pre-2000."],
+                   extra=["Budget band: mid."])
     assert score.caveats[0] == "Budget band: mid."
     assert "Analogues skew pre-2000." in score.caveats
     assert any("N/A" in c for c in score.caveats)
@@ -218,8 +266,8 @@ def test_metric_survives_a_prediction_score_round_trip():
     and the composite could not be reproduced from the artefact that exists to
     make it reproducible. The in-memory check passed the whole time.
     """
-    score = score_bundle(bundle([ev("commercial", 2.4, 30),
-                                 ev("attention", 0.62, 30)]))
+    score = scored([draft("commercial", 2.4, 30),
+                    draft("attention", 0.62, 30)])
     reloaded = PredictionScore.model_validate_json(score.model_dump_json())
 
     assert [e.metric for e in reloaded.evidence] == ["commercial", "attention"]
