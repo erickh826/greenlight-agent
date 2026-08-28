@@ -201,7 +201,7 @@ MCP_AUTH_TOKEN=<same secret>
 
 ## 下一步執行鏈（從當前 milestone 接上）
 
-> 當前位置：M2 Phase B grounded ✅；wildcard 與 PredictAgent 待做。  
+> 當前位置：M2 Phase B grounded ✅；PredictAgent ✅；wildcard 可砍，下一個阻斷點是 Root Agent 編排。
 > **部署工作從 M3 開始，但架構決策現已鎖定，M2 期間勿提前做 Sidecar。**
 
 ### 立即（M2 剩餘，8/29–9/2）
@@ -209,9 +209,7 @@ MCP_AUTH_TOKEN=<same secret>
 | 順序 | 任務 | Branch 建議 | 阻斷？ |
 |---|---|---|---|
 | 1 | RecombineAgent wildcard（`temperature=1.5`） | `feature/m2-recombine-phase-b-wildcard` | 否（可砍） |
-| 2 | `PredictAgent` 自主查詢 + SQL 重試 | `feature/m2-predict-agent` | **是** |
-| 3 | `app/scoring.py` 可解釋評分 + `insufficient_evidence` | 同上或接續 | **是** |
-| 4 | `SequentialAgent` 端到端 CLI | `feature/m2-root-agent` | **是** |
+| 2 | `SequentialAgent` 端到端 CLI | `feature/m2-root-agent` | **是** |
 
 每完成一項：`pytest` + 對應 `scripts/run_m2_*.py` trace log。
 

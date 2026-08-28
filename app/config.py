@@ -46,6 +46,22 @@ PROPOSAL_VARIANTS: Final[tuple[str, str]] = ("grounded", "wildcard")
 # whether the scoring only ever rewards safe choices.
 WILDCARD_TEMPERATURE: Final[float] = 1.5
 
+# --- Analogue retrieval ------------------------------------------------------
+# Budget bands for finding comparable films. A proposal is an idea and has no
+# budget, so one is assumed for the comparison and named in the caveats rather
+# than inferred from the logline.
+#
+# Fixed boundaries, not data quantiles: quantiles move when the corpus changes,
+# and a score whose comparison set silently shifts under it is not reproducible.
+# The predicates are written out so they reach the agent's instruction as SQL,
+# not as prose it has to translate.
+BUDGET_BANDS: Final[dict[str, str]] = {
+    "micro": "budget_usd < 5000000",
+    "low":   "budget_usd >= 5000000 AND budget_usd < 20000000",
+    "mid":   "budget_usd >= 20000000 AND budget_usd < 80000000",
+    "high":  "budget_usd >= 80000000",
+}
+
 # --- Reliability ------------------------------------------------------------
 # A failing query is handed back to the model with the error text verbatim. On
 # the third failure the agent stops with insufficient_evidence rather than
@@ -67,6 +83,7 @@ assert composite_weights_sum_to_one(), (
 
 __all__ = [
     "SCORING_WEIGHTS", "MIN_SAMPLE_SIZE", "SCENE_COUNT", "PROPOSAL_VARIANTS",
-    "MIN_INTEREST_SIGNAL", "WILDCARD_TEMPERATURE", "SQL_RETRY_LIMIT", "QUERY_TIMEOUT_SEC",
+    "MIN_INTEREST_SIGNAL", "WILDCARD_TEMPERATURE", "BUDGET_BANDS",
+    "SQL_RETRY_LIMIT", "QUERY_TIMEOUT_SEC",
     "RUN_TIMEOUT_SEC",
 ]

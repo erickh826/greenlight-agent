@@ -60,16 +60,109 @@ def parse_treatment_proposal(text: str) -> TreatmentProposal:
     return TreatmentProposal.model_validate_json(extract_json_object(text))
 
 
-def _canonical_sql(sql: str) -> str:
+def canonical_sql(sql: str) -> str:
+    """Comparable form of a query: no comments, one space, no trailing ;."""
     return normalise(sql).rstrip(";").lower()
 
 
-def _source_names(sql: str) -> set[str]:
+def source_names(sql: str) -> set[str]:
     names = set()
     for match in re.finditer(r"\b(?:from|join)\s+([a-zA-Z_][\w.]*)",
                              normalise(sql), re.I):
         names.add(match.group(1).split(".")[-1].lower())
     return names
+
+
+def _evidence_errors(proposal: TreatmentProposal,
+                     transcript_sql: str) -> list[str]:
+    """Per-item checks that hold for any variant.
+
+    A wildcard premise may be unsupported; a wildcard *citation* may not. If it
+    quotes a figure, that figure has to be one the transcript contains, or the
+    control branch becomes a licence to make things up.
+    """
+    errors: list[str] = []
+    for index, item in enumerate(proposal.evidence, start=1):
+        prefix = f"evidence[{index}]"
+        sql = item.sql_query.strip()
+        if not sql:
+            errors.append(f"{prefix} has an empty sql_query")
+            continue
+
+        if canonical_sql(sql) not in transcript_sql:
+            errors.append(f"{prefix} sql_query was not copied from Phase A")
+
+        source = item.source_view.strip().split(".")[-1].lower()
+        if source and source not in source_names(sql):
+            errors.append(
+                f"{prefix} source_view {item.source_view!r} is not read by "
+                "sql_query"
+            )
+
+        bad = violations(inspect(sql))
+        if bad:
+            errors.append(
+                f"{prefix} repeats guarded SQL: "
+                + ", ".join(f.rule for f in bad)
+            )
+    return errors
+
+
+def validate_wildcard_proposal(
+    proposal: TreatmentProposal,
+    phase_a_transcript: str,
+) -> list[str]:
+    """Errors that make a wildcard proposal dishonest rather than merely risky.
+
+    The wildcard is the control: it is supposed to pick a combination the data
+    does not support, so the grounding checks that apply to the grounded branch
+    would fail it by design. Three things still hold.
+
+    Its vocabulary must be real -- the schema enum enforces that, and a term
+    outside the controlled lists would match no row, making the wildcard empty
+    rather than bold. Its evidence, if it cites any, must be real. And an empty
+    evidence list is allowed here and only here: for a combination nobody
+    measured, that is the honest answer.
+
+    Note what is deliberately NOT checked: whether the premise is actually
+    unsupported. Verifying that would mean querying for the absence of a
+    result, and the scoring already answers it -- a wildcard the data happens to
+    support will simply score well, which is a finding rather than a failure.
+    """
+    errors: list[str] = []
+    if proposal.variant != "wildcard":
+        errors.append(f"variant must be wildcard, got {proposal.variant!r}")
+
+    errors.extend(
+        _evidence_errors(proposal, canonical_sql(phase_a_transcript)))
+
+    for index, item in enumerate(proposal.evidence, start=1):
+        if item.sample_count < MIN_SAMPLE_SIZE:
+            errors.append(
+                f"evidence[{index}] sample_count {item.sample_count} is below "
+                f"{MIN_SAMPLE_SIZE}; cite the broader figure or cite nothing"
+            )
+    return errors
+
+
+def source_list(sql: str) -> list[str]:
+    """FROM/JOIN targets in the order they appear."""
+    return [m.group(1).split(".")[-1].lower()
+            for m in re.finditer(r"\b(?:from|join)\s+([a-zA-Z_][\w.]*)",
+                                 normalise(sql), re.I)]
+
+
+def primary_source(sql: str) -> str:
+    """The table or view a query is best described as reading.
+
+    The outermost FROM is not always the first one textually -- a subquery over
+    films aggregated by the outer SELECT reads films -- so this takes the last
+    named source rather than the first. For the shapes the agent writes (one
+    view, or films wrapped in at most one subquery) that is the right answer,
+    and it is derived rather than asked for, which is the point.
+    """
+    names = source_list(sql)
+    return names[-1] if names else ""
 
 
 def validate_grounded_proposal(
@@ -78,7 +171,7 @@ def validate_grounded_proposal(
 ) -> list[str]:
     """Errors that make a Phase B proposal insufficiently grounded."""
     errors: list[str] = []
-    transcript_sql = _canonical_sql(phase_a_transcript)
+    transcript_sql = canonical_sql(phase_a_transcript)
 
     if proposal.variant != "grounded":
         errors.append(f"variant must be grounded, got {proposal.variant!r}")
@@ -100,33 +193,11 @@ def validate_grounded_proposal(
             "vocabulary not present in Phase A trace: " + ", ".join(invented)
         )
 
+    errors.extend(_evidence_errors(proposal, transcript_sql))
     for index, item in enumerate(proposal.evidence, start=1):
-        prefix = f"evidence[{index}]"
-        sql = item.sql_query.strip()
-        if not sql:
-            errors.append(f"{prefix} has an empty sql_query")
-            continue
-
-        if _canonical_sql(sql) not in transcript_sql:
-            errors.append(f"{prefix} sql_query was not copied from Phase A")
-
-        source = item.source_view.strip().split(".")[-1].lower()
-        if source and source not in _source_names(sql):
-            errors.append(
-                f"{prefix} source_view {item.source_view!r} is not read by "
-                "sql_query"
-            )
-
-        bad = violations(inspect(sql))
-        if bad:
-            errors.append(
-                f"{prefix} repeats guarded SQL: "
-                + ", ".join(f.rule for f in bad)
-            )
-
         if item.sample_count < MIN_SAMPLE_SIZE:
             errors.append(
-                f"{prefix} sample_count {item.sample_count} is below "
+                f"evidence[{index}] sample_count {item.sample_count} is below "
                 f"{MIN_SAMPLE_SIZE}"
             )
 
@@ -134,7 +205,12 @@ def validate_grounded_proposal(
 
 
 __all__ = [
+    "canonical_sql",
+    "source_names",
+    "source_list",
+    "primary_source",
     "extract_json_object",
     "parse_treatment_proposal",
     "validate_grounded_proposal",
+    "validate_wildcard_proposal",
 ]
