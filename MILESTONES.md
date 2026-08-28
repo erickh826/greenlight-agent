@@ -192,20 +192,71 @@
 
 ### 8/28 五（3.5h）
 
-- [ ] `app/prompts.py`：system instruction 含完整 DDL、view 用途、3 個範例查詢
-- [ ] `app/contracts.py`：Pydantic 契約
-- [ ] `RecombineAgent` Phase A：MCP 自主查詢
+- [x] `app/prompts.py`：system instruction 含完整 DDL、view 用途、查詢範例與
+      `QUERY_GUIDANCE`（AggregatingMergeTree `-Merge` 用法、先查廣再收窄、
+      不掃 `film_attention`、interest 必須用 `interest_sample_count`）
+- [x] `app/contracts.py`：Pydantic 契約；`PredictionScore` 的
+      `commercial_score` / `attention_score` / `composite` 已允許 `None`，
+      缺資料為 N/A，不再折成 0 分
+- [x] `app/mcp.py`：`warm_up()` 走 MCP `run_query`，在 agent 前先跑
+      `SELECT 1` ＋ 兩個 MV 輕量查詢，吸收 ClickHouse dev-tier 冷路徑
+- [x] `app/guardrails.py`：查詢護欄落地，檢查 write attempt、舊欄位、
+      未限制的 `film_attention` scan、interest 沒帶 `interest_sample_count`、
+      nested `-Merge`、raw aggregate state；另用 `unsupported_terms()` 抓
+      綜述中未被本輪查詢或結果支撐的受控詞彙
+- [x] `app/agents/recombine.py`：`RecombineAgent` Phase A factory；
+      tools 開啟、無 `response_schema`，只做自主查詢與 prose synthesis
+- [x] `scripts/run_m2_recombine_phase_a.py`：M2 Phase A CLI；
+      輸出 `docs/m2-recombine-phase-a-trace.log`，DoD 包含 warm-up、
+      成功 response 扣掉 error、MV 查詢、guardrail、unsupported terms
 
-**DoD**：agent 能自行決定查詢條件並取回聚合結果。
+**DoD**：agent 能自行決定查詢條件並取回聚合結果 → **PASS**。
+
+驗收（2026-08-28）：
+
+- `python3 -m pytest tests -q` → **44 passed**
+- `python3 -m compileall app scripts etl tests` → PASS
+- `./scripts/run_etl.sh scripts/verify_mv.py` → **16/16 PASS**；
+  暖機後最慢中位數 **296.5ms**，最慢 tail **326.2ms**
+- `./scripts/run_agent.sh scripts/run_m2_recombine_phase_a.py` → **PASS**；
+  warm-up **3/3**，Gemini 自選 `run_query` **6 次**，成功 ClickHouse
+  response **6 次**，**6/6** 查 MV，guardrail 違規 **0**、警告 **0**，
+  unsupported terms **0**
+
+> ⚠️ 提交前風險：`11479ac` commit message 含
+> `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`。功能不受影響，
+> 但與 submission checklist「commit 歷史無非 Google 的 AI 服務」相衝突；
+> Devpost 前需處理。
 
 ### 8/29–8/30 週末（2h）
 
-- [ ] `RecombineAgent` Phase B：關閉 tools，開 `response_schema` 收斂
+- [x] `RecombineAgent` Phase B grounded-only thin slice：
+      關閉 tools，開 `output_schema=TreatmentProposal` 收斂為單一 grounded proposal
+- [x] `app/proposal_validation.py`：Phase B 輸出驗收，檢查 schema parse、
+      `variant=grounded`、evidence SQL 可回溯 Phase A trace、source_view 對得上查詢、
+      樣本數不低於門檻、受控詞彙不憑空出現
+- [x] `scripts/run_m2_recombine_phase_b.py`：讀
+      `docs/m2-recombine-phase-a-trace.log`，不建立 MCP toolset，
+      輸出 `docs/m2-recombine-phase-b-grounded-trace.log` 與
+      `docs/m2-grounded-proposal.json`
 - [ ] 彩蛋分支：一次 `temperature=1.5` 額外呼叫
 
-**DoD**：輸出兩個 `TreatmentProposal`（grounded ＋ wildcard）。
+**DoD（grounded-only thin slice）**：輸出一個 `TreatmentProposal`，且全程無 tool call
+→ **PASS**。
+
+驗收（2026-08-28，提前完成 grounded-only）：
+
+- `python3 -m pytest tests -q` → **49 passed**
+- `python3 -m compileall app scripts etl tests` → PASS
+- `./scripts/run_agent.sh scripts/run_m2_recombine_phase_b.py` → **PASS**；
+  tool call **0**、tool response **0**、`TreatmentProposal` parse **PASS**、
+  `variant=grounded`、evidence grounding **PASS**
+
+原週末完整 DoD（grounded ＋ wildcard 兩個 `TreatmentProposal`）仍待 wildcard 分支完成。
 
 ### 8/31 一（3.5h）
+
+> **下一個 agent session**：從此任務開始；部署決策已鎖定於 `docs/M4_DEPLOYMENT_PROMPT.md`。
 
 - [ ] `PredictAgent`（對外稱 **Analogue / Evidence Scoring Agent**）：自主組裝查詢條件
       （年份、預算區間、母題交集），檢索歷史類比案例
@@ -267,7 +318,7 @@
 
 - [ ] 雙方案對比區塊 ＋ 核准按鈕
 - [ ] CSS Ken Burns 播放器（`transform: scale` ＋ `translate`，`audio.timeupdate` 切換場景）
-- [ ] Dockerfile ＋ Cloud Run 部署
+- [ ] Dockerfile ＋ Cloud Run 部署（**Phase 1 基礎版**：單容器 stdio MCP；策略見 `docs/M4_DEPLOYMENT_PROMPT.md`）
 - [ ] Secret Manager 設定
 - [ ] **無痕視窗完整測試一次**
 

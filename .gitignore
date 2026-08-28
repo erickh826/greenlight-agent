@@ -27,6 +27,7 @@ data/
 # app/env.redact() before anything is written.
 !docs/m0-mcp-trace.log
 !docs/m2-recombine-phase-a-trace.log
+!docs/m2-recombine-phase-b-grounded-trace.log
 .idea/
 .vscode/
 
