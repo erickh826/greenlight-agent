@@ -395,37 +395,59 @@ Phase B 沒有 tools，它必須把 Phase A trace 當成「引用的資料」，
 ## M3 — 媒體與前端
 
 > 9/3–9/7，12.5 小時
+> **目前分支**：`feature/m3-media-frontend-plan`
+> **執行計劃**：`docs/M3_MEDIA_FRONTEND_PLAN.md`
+> **下一個 coding task**：M3 Task 0 — `app/main.py` + SSE + admission control。
+
+M3 的順序已於 2026-08-29 調整：先做公開 demo 的 API/SSE shell 與成本保護，
+再做 Imagen/TTS 媒體。原因是 Storyboard 可以降級，但評審看得到 SQL trace、
+雙方案、approve gate 這條主路徑不能缺。
 
 ### 9/3 四（3.5h）
 
-- [ ] `app/media.py`：Imagen 生圖，固定風格前綴 ＋ seed
-- [ ] GCS 上傳與 URL 產生
-- [ ] `StoryboardAgent`：大綱 → 3 場景描述 → 生圖
+- [ ] `app/main.py`：FastAPI endpoints
+      `GET /`、`POST /run`、`GET /events/{run_id}`、
+      `POST /approve/{run_id}`、`GET /health`
+- [ ] API path 接上既有 `run_greenlight()`，但 analysis 完成時發布
+      `awaiting_approval`，不可讓 CLI 用的 `done` 提早關掉 SSE
+- [ ] 公開 demo 保護：同時只允許 1 個 active `/run`、每 IP rate limit、
+      prompt 長度上限、busy response
+- [ ] `InProcessEventBus` replay hardening：history cap、QueueFull 安全、
+      terminal cleanup
+- [ ] `web/index.html` 最小骨架：能啟動 run、接 SSE、顯示 SQL/rows/latency、
+      顯示 proposals/scores、送 approve
 
-**DoD**：3 張風格一致的 16:9 圖片，可由 URL 存取。
+**DoD**：瀏覽器能看到 M2 agent 查詢過程，analysis 完成後停在 approve gate；
+unit tests 不打 Gemini / ClickHouse / Imagen。
 
 ### 9/4 五（3.5h）
 
+- [ ] `app/agents/storyboard.py`：approved proposal → exactly 3 scene plans
+- [ ] `app/media.py`：Imagen 生圖，固定風格前綴，輸出 16:9 scene still
+- [ ] GCS 上傳與 URL 產生
 - [ ] Cloud TTS 旁白（Chirp 3 HD）
-- [ ] 音訊上傳 GCS，取得 duration
-- [ ] `SceneAsset` 契約填充完成
+- [ ] `SceneAsset` 契約填充完成；媒體錯誤必須 publish `error` event
 
-**DoD**：圖 ＋ 音訊可播放。
+**DoD**：3 張風格一致的 16:9 圖片可由 URL 存取；音訊可播放或明確走
+Google-only fallback。
 
 ### 9/5–9/6 週末（2h）
 
-- [ ] `web/index.html` 骨架
-- [ ] SSE 接收與事件渲染
-- [ ] **證據流區塊：顯示 SQL 原文、列數、耗時**
+- [ ] 雙方案對比區塊 ＋ 核准按鈕
+- [ ] **證據流區塊：顯示 SQL 原文、列數、耗時、錯誤與 retry**
+- [ ] CSS Ken Burns 播放器（`transform: scale` ＋ `translate`，
+      `audio.timeupdate` 切換場景）
+- [ ] Mobile / desktop layout 檢查，避免文字或按鈕重疊
 
-**DoD**：瀏覽器能即時看到 agent 的查詢過程。
+**DoD**：瀏覽器可完整跑 run → SSE evidence → proposal compare → approve →
+storyboard playback。
 
 ### 9/7 一（3.5h）
 
-- [ ] 雙方案對比區塊 ＋ 核准按鈕
-- [ ] CSS Ken Burns 播放器（`transform: scale` ＋ `translate`，`audio.timeupdate` 切換場景）
 - [ ] Dockerfile ＋ Cloud Run 部署（**Phase 1 基礎版**：單容器 stdio MCP；策略見 `docs/M4_DEPLOYMENT_PROMPT.md`）
 - [ ] Secret Manager 設定
+- [ ] README 更新：實際部署架構、Google-only AI 服務、ClickHouse/MCP runtime path、
+      score 不是票房預測的邊界聲明
 - [ ] **無痕視窗完整測試一次**
 
 **DoD**：公開 URL 可用，陌生人能自行跑完一次。

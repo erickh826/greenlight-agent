@@ -201,25 +201,28 @@ MCP_AUTH_TOKEN=<same secret>
 
 ## 下一步執行鏈（從當前 milestone 接上）
 
-> 當前位置：M2 Phase B grounded ✅；PredictAgent ✅；wildcard 可砍，下一個阻斷點是 Root Agent 編排。
-> **部署工作從 M3 開始，但架構決策現已鎖定，M2 期間勿提前做 Sidecar。**
+> 當前位置：M2 已 merge 到 `main`。RecombineAgent、PredictAgent、wildcard
+> control、root orchestration、query trace、evidence scoring 全部已通過驗收。
+> 下一個阻斷點是 M3 的 browser demo shell：FastAPI endpoints、SSE evidence
+> stream、approve gate、public run admission control。
 
-### 立即（M2 剩餘，8/29–9/2）
+### 立即（M3 起點，2026-08-29 起）
 
 | 順序 | 任務 | Branch 建議 | 阻斷？ |
 |---|---|---|---|
-| 1 | RecombineAgent wildcard（`temperature=1.5`） | `feature/m2-recombine-phase-b-wildcard` | 否（可砍） |
-| 2 | `SequentialAgent` 端到端 CLI | `feature/m2-root-agent` | **是** |
+| 1 | M3 plan + milestone reset | `feature/m3-media-frontend-plan` | 是 |
+| 2 | FastAPI/SSE demo shell + admission control | `feature/m3-demo-shell` | **是** |
+| 3 | StoryboardAgent + Imagen/TTS/GCS | `feature/m3-media-storyboard` | 是 |
 
-每完成一項：`pytest` + 對應 `scripts/run_m2_*.py` trace log。
+每完成一項：`pytest` + `compileall`；涉及 agent runtime 時再跑最新 e2e trace。
 
 ### M3（9/3–9/7）— Phase 1 部署主戰場
 
 | 日期 | 任務 | 與部署的關係 |
 |---|---|---|
-| 9/3 | `app/media.py` + StoryboardAgent | `create_task` 非同步管線 |
-| 9/4 | Cloud TTS + GCS | 同上；失敗 → visual-only fallback |
-| 9/5–9/6 | `web/index.html` + SSE 證據流 | 接 `InProcessEventBus` |
+| 9/3 | FastAPI endpoints + SSE evidence stream + admission control | 公開 demo 入口 |
+| 9/4 | `app/media.py` + StoryboardAgent + Imagen/TTS/GCS | `create_task` 非同步管線 |
+| 9/5–9/6 | proposal compare + approve + Ken Burns player | browser demo 主體 |
 | **9/7** | **Dockerfile + Cloud Run deploy + 無痕測試** | **Phase 1 DoD 截止** |
 
 **9/7 當天執行順序：**
