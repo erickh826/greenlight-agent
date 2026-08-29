@@ -279,7 +279,14 @@ function listen(id) {
     statusEl.textContent = `run ${runId} · awaiting approval`;
     render(d.proposals || [], d.scores || []);
   });
-  on("media_ready", d => { buildBoard(d.scenes || []); });
+  on("media_ready", d => {
+    buildBoard(d.scenes || []);
+    // The approved card's button said "generating…" for the rest of the
+    // session, which reads as still working long after it finished.
+    document.querySelectorAll(".card button").forEach(b => {
+      if (b.textContent === "generating…") b.textContent = "storyboard below ↓";
+    });
+  });
   on("done", () => {
     statusEl.textContent = `run ${runId} · done`;
     $("go").disabled = false;

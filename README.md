@@ -117,12 +117,35 @@ on it kills the container and restarts it into the same cold start.
 PROJECT=$(gcloud config get-value project)
 REGION=us-central1
 
-gcloud artifacts repositories create greenlight   --repository-format=docker --location=$REGION
+# The runtime service account reads the secrets, calls Vertex and writes the
+# asset bucket. Without these the container starts and every run fails.
+SA=$(gcloud projects describe $PROJECT --format='value(projectNumber)')-compute@developer.gserviceaccount.com
+for ROLE in secretmanager.secretAccessor aiplatform.user storage.objectAdmin; do
+  gcloud projects add-iam-policy-binding $PROJECT \
+    --member="serviceAccount:$SA" --role="roles/$ROLE" --condition=None
+done
 
-gcloud builds submit --tag   $REGION-docker.pkg.dev/$PROJECT/greenlight/greenlight:latest
+gcloud artifacts repositories create greenlight \
+  --repository-format=docker --location=$REGION
 
-gcloud run deploy greenlight   --image=$REGION-docker.pkg.dev/$PROJECT/greenlight/greenlight:latest   --region=$REGION --allow-unauthenticated   --min-instances=1 --max-instances=1   --no-cpu-throttling --timeout=300 --concurrency=10   --memory=2Gi   --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=$REGION,GCS_BUCKET=greenlight-agent-demo,GCS_PUBLIC_ASSETS=true,CLICKHOUSE_USER=default,CLICKHOUSE_PORT=8443,CLICKHOUSE_SECURE=true,CLICKHOUSE_DATABASE=default   --set-secrets=CLICKHOUSE_HOST=clickhouse-host:latest,CLICKHOUSE_PASSWORD=clickhouse-password:latest
+gcloud builds submit --tag \
+  $REGION-docker.pkg.dev/$PROJECT/greenlight/greenlight:latest
+
+gcloud run deploy greenlight \
+  --image=$REGION-docker.pkg.dev/$PROJECT/greenlight/greenlight:latest \
+  --region=$REGION --allow-unauthenticated \
+  --min-instances=1 --max-instances=1 \
+  --no-cpu-throttling --timeout=900 --concurrency=10 \
+  --memory=2Gi --cpu=2 \
+  --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=$REGION,GCS_BUCKET=greenlight-agent-demo,GCS_PUBLIC_ASSETS=true,CLICKHOUSE_USER=default,CLICKHOUSE_PORT=8443,CLICKHOUSE_SECURE=true,CLICKHOUSE_DATABASE=default,MODEL_FAST=gemini-2.5-flash,MODEL_IMAGE=gemini-2.5-flash-image,MODEL_TTS=gemini-2.5-flash-preview-tts,MODEL_TTS_VOICE=Charon \
+  --set-secrets=CLICKHOUSE_HOST=clickhouse-host:latest,CLICKHOUSE_PASSWORD=clickhouse-password:latest
 ```
+
+`--timeout=900` is about the SSE stream, not about slow requests. A full run
+measured 335 seconds on Cloud Run, and at the specified 300 the connection was
+cut before `media_ready` -- the browser recovers, because `EventSource`
+reconnects and the bus replays history to a new subscriber, but the primary path
+should not depend on the backstop.
 
 `--min-instances=1 --max-instances=1` is not a cost setting. `RunStore` and
 `InProcessEventBus` live in one process's memory, so a second instance would
@@ -133,6 +156,8 @@ Credentials never enter the image: `.env` is in `.dockerignore`, and Cloud Run
 injects the two secrets from Secret Manager.
 
 ## Status
+
+**Live: https://greenlight-277057547230.us-central1.run.app**
 
 M0–M3 complete. The full path — analysis, two scored proposals, approval,
 storyboard — has been verified inside the production container against live

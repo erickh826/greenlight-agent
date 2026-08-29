@@ -1,0 +1,33 @@
+# Upload context for `gcloud builds submit`. Docker has .dockerignore; Cloud
+# Build reads this one, and without it the several-GB data/ directory would be
+# uploaded on every build.
+#
+# gcloud does NOT fall back to .dockerignore, so the two files have to agree.
+# They exclude the same things for the same reasons.
+.env
+*.local.*
+
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+data/
+docs/
+# `etl/*` excludes the contents rather than the directory itself, which is what
+# makes the negation below work. Excluding `etl/` outright cannot be undone:
+# gitignore semantics -- which gcloud follows and Docker does not -- refuse to
+# re-include a file whose parent directory is excluded. The two files agreed in
+# wording and disagreed in behaviour, and Cloud Build found it at step 13.
+etl/*
+# ...except the vocabulary: app/contracts.py and app/prompts.py import it as
+# the single source of truth for every controlled term, and the Dockerfile
+# copies it.
+!etl/vocab.py
+scripts/
+tests/
+suggestion/
+*.md

@@ -12,7 +12,7 @@ changing the evidence rules that made M2 pass.
 - AI services stay Google-only: Gemini, Imagen and Cloud TTS. No fallback may
   call a non-Google AI API.
 - Competition deploy stays single-instance Cloud Run:
-  `--min-instances=1 --max-instances=1 --no-cpu-throttling --timeout=300`.
+  `--min-instances=1 --max-instances=1 --no-cpu-throttling --timeout=900`.
 - HITL approval is not an agent await and not a distributed queue. It is
   `RunStore` state plus `InProcessEventBus` in one process.
 - Do not move to Redis, Workflows, Pub/Sub, Cloud Tasks or MCP sidecar until

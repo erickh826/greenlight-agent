@@ -612,11 +612,18 @@ house style 結尾的 `no logos, no watermarks` 被分類器讀成「要求移�
       score 不是票房預測的邊界聲明、部署指令
 - [x] **容器內完整跑通一次**（等同無痕：容器沒有 `.env`、沒有 repo、
       只有 image ＋ 注入的環境變數）
-- [ ] `gcloud run deploy` 實際部署 → **卡住，需要你操作**（見下）
-- [ ] Secret Manager 建立兩個 secret
-- [ ] 公開 URL 無痕視窗驗收
+- [x] Secret Manager：`clickhouse-host`、`clickhouse-password`
+- [x] `gcloud run deploy` 實際部署
+- [x] **公開 URL 無痕視窗驗收（真實瀏覽器）**
 
-**DoD**：公開 URL 可用，陌生人能自行跑完一次 → **容器層已通過，雲端部署待你授權**。
+**DoD**：公開 URL 可用，陌生人能自行跑完一次 → **PASS**。
+
+## 🟢 上線
+
+**https://greenlight-277057547230.us-central1.run.app**
+
+`us-central1` / `min=1 max=1` / `no-cpu-throttling` / `timeout=900` /
+`concurrency=10` / 2 vCPU / 2 GiB。憑證由 Secret Manager 注入，image 內沒有。
 
 #### Task 4 驗收（2026-08-30）
 
@@ -650,10 +657,39 @@ image: ClientError on attempt 1/4, retrying in 4s
 image: ClientError on attempt 2/4, retrying in 8s
 ```
 
-**卡住的地方：我無法實際部署。** `gcloud` CLI 沒有登入帳號
-（`You do not currently have an active account selected`），而且這個專案的
-Service Usage API 是關的——Artifact Registry / Cloud Build / Cloud Run
-很可能也需要先啟用。這件事**現在就要處理**，不要留到 9/7。
+#### 部署驗收（2026-08-30，公開 URL）
+
+- 啟用 API：`run` / `artifactregistry` / `cloudbuild` / `secretmanager` / `storage`
+- runtime service account 授權：`secretmanager.secretAccessor`、
+  `aiplatform.user`、`storage.objectAdmin`
+- **真實瀏覽器無痕測試 → PASS**：載入頁面 → 按 Run → 證據流出現 SQL 原文 →
+  雙方案（`The Unveiling Shadow` 54.9/57.2/**55.8** vs
+  `The Corruptor's Redemption` 57.1/55.5/**56.5**）→ approve →
+  3 張 1344×768 分鏡 ＋ 9.5/9.5/9.8 秒旁白 → done。
+  **0 版面問題、0 JS error。**
+
+**部署過程踩到三件事，都值得記：**
+
+1. **`.gcloudignore` 的 `!etl/vocab.py` 不生效。** Cloud Build 在 step 13
+   `COPY failed: etl/vocab.py: file does not exist`。gitignore 語意
+   （gcloud 用的）**不允許**把已被排除目錄底下的檔案重新納入，而 Docker 的
+   實作允許——所以 `.dockerignore` 本機建得起來、`.gcloudignore` 建不起來。
+   兩個檔案措辭一致、行為不一致。改成 `etl/*`（排除內容而非目錄）才能被
+   `!etl/vocab.py` 抵銷。
+2. **`--timeout=300` 比一次完整 run 還短。** Cloud Run 實測整趟 335 秒
+   （分析 230 秒 ＋ 媒體 105 秒），SSE 連線在 284 秒被切斷，`media_ready`
+   沒送到。瀏覽器其實救得回來（`EventSource` 會自動重連，bus 會把 history
+   重播給新訂閱者，前端有去重），但主路徑不該依賴那層保險。改成 `--timeout=900`，
+   `docs/` 與 README 一併更新。
+3. **本機 image 是 arm64，Cloud Run 要 amd64。** 所以走 Cloud Build 而不是
+   `docker push` 本機那顆——那顆只是用來在本機驗證行為。
+
+**`/ready` 在雲端把 `/health` 拆開的理由講得更清楚了**：connectivity 冷路徑
+**24.1 秒**，暖起來之後兩個 MV 查詢各 48.5 / 53.4 毫秒。startup probe 打
+`/health` 才不會被那 24 秒殺掉。
+
+**媒體重試在正式環境真的救了一次**：無痕那輪 scene 3 的圖連續撞了三次配額，
+`retrying in 4s / 8s / 16s`，然後成功——畫面上看得到。
 
 ### 🔒 當晚凍結。9/8 之後只修會導致 demo 崩潰的 bug。
 

@@ -69,7 +69,7 @@ Phase 2（加分，9/7 凍結後或 M3 尾聲有空）
    │  GET /events/{id}  (SSE)
    │  POST /approve/{id}
    ▼
-┌─ Cloud Run (min=1, max=1, cpu-always-on, timeout=300) ─────────────┐
+┌─ Cloud Run (min=1, max=1, cpu-always-on, timeout=900) ─────────────┐
 │  FastAPI + ADK Root Agent                                          │
 │    ├─ RunStore (in-memory state machine)                           │
 │    ├─ InProcessEventBus (SSE fan-out)                              │
@@ -86,7 +86,7 @@ Phase 2（加分，9/7 凍結後或 M3 尾聲有空）
 --min-instances=1
 --max-instances=1
 --no-cpu-throttling
---timeout=300
+--timeout=900
 --concurrency=10   # 配合 Semaphore，同時只允許 1 active analysis
 ```
 
@@ -240,7 +240,7 @@ python3 -m pytest tests -q
 gcloud builds submit --tag ${IMAGE_TAG} .
 gcloud run deploy greenlight-agent \
   --min-instances=1 --max-instances=1 \
-  --no-cpu-throttling --timeout=300 \
+  --no-cpu-throttling --timeout=900 \
   ...
 
 # 3. 暖機 + 無痕視窗完整 demo
