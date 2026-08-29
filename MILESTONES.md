@@ -618,6 +618,55 @@ house style 結尾的 `no logos, no watermarks` 被分類器讀成「要求移�
 
 **DoD**：公開 URL 可用，陌生人能自行跑完一次 → **PASS**。
 
+## ⚡ Live run 時間壓縮（2026-08-30）
+
+**335s → 168s**，公開 URL 實測、瀏覽器端到端。到雙方案的等待從 230s → ~115s。
+
+先量才知道問題不在哪：**ClickHouse 只佔 21.4s（7%）**——被評審看的那部分本來就快，
+慢的是我們自己排成一直線的東西。三項改動，依效益排序：
+
+1. **兩個 variant 鏈並行。** 它們除了共用 Phase A transcript 之外毫無關係，
+   卻是循序跑的：grounded 69.5s 接著 wildcard 108.0s，而兩者並行只要 108s。
+   `outcomes` 用 `zip(variants, branches)` 回填，照**要求的順序**而非完成順序，
+   所以 grounded 永遠是左邊那張卡、`m2-greenlight-run.json` 也穩定；
+   一個分支拋例外不會拖垮另一個（循序版靠 `continue` 免費得到的保證）。
+2. **三個機械式階段關掉 thinking。** 兩個 Phase B ＋ storyboard。
+   `app/agents/` 底下本來一處都沒設過 `thinking_config`，而 `gemini-2.5-flash`
+   預設會想。兩個 tools-on 的 agent 維持不變——它們要規劃 SQL、要看結果決定下一步，
+   那正是螢幕上被看的東西。
+3. **媒體改成「同配額池內循序、跨配額池並行」。** 原本全循序的理由是
+   「一次一個在配額下比較可預測」——對的直覺、太寬的套用。配額是**按模型**分的：
+   圖片維持循序（`gemini-2.5-flash-image` 才是會噴 429 的那個），
+   旁白三段並行（不同模型、不同池），上傳並行（GCS 不吃 Vertex 配額）。
+   實際工作量 73s → 51s。
+
+**並行讓兩個潛伏的 bug 浮出來：**
+
+- 兩個 variant 的 scoring 階段**同名**（都是 `predict_analogue_query`），
+  交錯之後證據流變成兩份紀錄洗在一起。現在每個事件都帶 `variant`，
+  前端用方案卡既有的顏色標在每一行前面。
+- `GoogleMediaClient` 的 SDK client 是首次使用時才建，而「首次使用」現在同時發生在
+  好幾條執行緒上。兩條各自看到 `None`、各自建了一個，輸的那個在請求還在飛的時候被丟掉：
+  `Cannot send a request, as the client has been closed.`。改成上鎖建立。
+
+**部署後第一輪抓到兩件事**（97s 但兩張卡都是 N/A）：
+
+- **`predict_analogue_converge` 不能關 thinking。** 它看起來像轉錄，其實不是：
+  它要決定每個數字出自第幾號查詢、哪個 count 配哪個 metric。關掉之後產出 26 筆
+  `sample_count 1`、把 interest 數字配上 ROI 列數，整包被驗證擋掉——
+  **一個更快但算不出分數的階段**。已改回。
+- **分數的 title 不該由模型回報。** `score_bundle` 原本用
+  `bundle.proposal_title`，那是模型把我們已經知道的東西再講一次；有一輪它講成
+  `"Untitled"`。分數本身正確、confidence 是 high，但前端是**用 title 把分數接回方案**的，
+  所以卡片顯示 N/A。改成由 `score_proposal` 傳入 `request.proposal.title`。
+  順帶補了 `manual/incognito_test.py` 的漏洞——它讓一輪兩張卡都是 N/A 的 run 通過了，
+  現在會斷言分數是數字。
+
+**我自己的兩個編輯靜默失效**（`str.replace` 對到已經改過的文字），
+結果那一輪 `db_ms` 全是 0、查詢也沒被標記，跑完才發現。現在都加了 assert。
+
+153 tests。
+
 ## 🟢 上線
 
 **https://greenlight-277057547230.us-central1.run.app**

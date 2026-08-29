@@ -197,7 +197,8 @@ def partition(evidence: list[AnalogueEvidence]
 
 def score_bundle(bundle: AnalogueEvidenceBundle,
                  evidence: list[AnalogueEvidence],
-                 extra_caveats: Iterable[str] = ()) -> PredictionScore:
+                 extra_caveats: Iterable[str] = (),
+                 proposal_title: str | None = None) -> PredictionScore:
     """The only place a PredictionScore is built.
 
     Takes the resolved evidence rather than reading it off the bundle: what the
@@ -211,8 +212,14 @@ def score_bundle(bundle: AnalogueEvidenceBundle,
     commercial, attention, composite, confidence, caveats = score_from_evidence(
         list(roi_items), list(interest_items))
 
+    # The caller knows the title for certain; the bundle's copy is the model
+    # repeating it back. On one run it repeated it back as "Untitled", and
+    # since the interface joins a score to its proposal by title, the card
+    # showed N/A for a score that was computed correctly and marked high
+    # confidence. A fact the caller holds should not make a round trip through
+    # a model.
     return PredictionScore(
-        proposal_title=bundle.proposal_title,
+        proposal_title=proposal_title or bundle.proposal_title,
         commercial_score=commercial,
         attention_score=attention,
         composite=composite,

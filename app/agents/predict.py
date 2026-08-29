@@ -215,11 +215,13 @@ def build_predict_converge_agent(model: str) -> Agent:
         instruction=f"{analyst_system_instruction()}\n\n{CONVERGE_TASK}",
         tools=[],
         output_schema=AnalogueEvidenceBundle,
-        generate_content_config=types.GenerateContentConfig(
-            temperature=0.2,
-            thinking_config=types.ThinkingConfig(
-                thinking_budget=SCHEMA_STAGE_THINKING_BUDGET),
-        ),
+        # No thinking_config here, unlike the other three schema stages. This
+        # one is not transcription: it decides which numbered query produced a
+        # figure and which count belongs to which metric. Run without thinking
+        # it produced 26 evidence items citing sample_count 1 and pairing
+        # interest figures with ROI row counts, and the whole bundle was
+        # rejected -- a faster stage that scores nothing.
+        generate_content_config=types.GenerateContentConfig(temperature=0.2),
     )
 
 

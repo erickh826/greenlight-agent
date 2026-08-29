@@ -532,7 +532,8 @@ async def score_proposal(model: str, toolset,
             + (parse_error or "; ".join(evidence_errors)),
             extra_caveats=caveats)
     else:
-        score = score_bundle(bundle, evidence, extra_caveats=caveats)
+        score = score_bundle(bundle, evidence, extra_caveats=caveats,
+                             proposal_title=request.proposal.title)
 
     return ScoringOutcome(score=score, query_run=query_run, bundle=bundle,
                           parse_error=parse_error,

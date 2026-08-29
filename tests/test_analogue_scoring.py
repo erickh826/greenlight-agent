@@ -298,3 +298,20 @@ def test_budget_bands_partition_the_range_without_gaps():
         assert "budget_usd" in predicate
     for edge in ("5000000", "20000000", "80000000"):
         assert sum(edge in p for p in BUDGET_BANDS.values()) == 2
+
+
+def test_the_score_title_comes_from_the_caller_not_the_model():
+    """The bundle's title is the model repeating back something we know.
+
+    On one live run it repeated it back as "Untitled". The score itself was
+    correct and marked high confidence, but the interface joins a score to its
+    proposal by title, so the card showed N/A for a perfectly good score.
+    """
+    b = bundle([draft("commercial", 2.4, 30)])
+    evidence, _ = resolve_bundle(b, [ROI_SQL])
+    assert score_bundle(b, evidence).proposal_title == "The Unveiling"
+
+    b.proposal_title = "Untitled"
+    kept = score_bundle(b, evidence, proposal_title="The Unveiling")
+    assert kept.proposal_title == "The Unveiling"
+    assert kept.composite is not None

@@ -63,10 +63,17 @@ BUDGET_BANDS: Final[dict[str, str]] = {
 }
 
 # --- Latency ----------------------------------------------------------------
-# The four no-tools stages -- both Phase B branches, the analogue convergence
-# and the storyboard -- turn something that already exists into JSON. They are
-# transcription, not reasoning, and gemini-2.5-flash thinks by default:
-# measured over one 307-second run they spent 88 seconds between them.
+# Three of the no-tools stages -- both Phase B branches and the storyboard --
+# turn something that already exists into JSON. They are transcription, not
+# reasoning, and gemini-2.5-flash thinks by default: measured over one
+# 307-second run the no-tools stages spent 88 seconds between them.
+#
+# The analogue convergence stage was in this set and has been taken out. It
+# looked like transcription and is not: it decides which numbered query
+# produced each figure and which count belongs to which metric. Without
+# thinking it emitted 26 evidence items citing sample_count 1 and pairing
+# interest figures with ROI counts, all of which validation rejected -- a
+# faster stage that scored nothing.
 #
 # etl/04_motif_enrichment.py already does this for the same kind of stage, and
 # its comment records the finding that matters here too -- thinking is not extra
