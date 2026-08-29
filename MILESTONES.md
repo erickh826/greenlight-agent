@@ -606,13 +606,54 @@ house style 結尾的 `no logos, no watermarks` 被分類器讀成「要求移�
 
 ### 9/7 一（3.5h）
 
-- [ ] Dockerfile ＋ Cloud Run 部署（**Phase 1 基礎版**：單容器 stdio MCP；策略見 `docs/M4_DEPLOYMENT_PROMPT.md`）
-- [ ] Secret Manager 設定
-- [ ] README 更新：實際部署架構、Google-only AI 服務、ClickHouse/MCP runtime path、
-      score 不是票房預測的邊界聲明
-- [ ] **無痕視窗完整測試一次**
+- [x] Dockerfile ＋ `.dockerignore`（**Phase 1 基礎版**：單容器 stdio MCP、
+      雙 venv 隔離、非 root、預裝 mcp-clickhouse）
+- [x] README 更新：實際部署架構、Google-only AI 服務、ClickHouse/MCP runtime path、
+      score 不是票房預測的邊界聲明、部署指令
+- [x] **容器內完整跑通一次**（等同無痕：容器沒有 `.env`、沒有 repo、
+      只有 image ＋ 注入的環境變數）
+- [ ] `gcloud run deploy` 實際部署 → **卡住，需要你操作**（見下）
+- [ ] Secret Manager 建立兩個 secret
+- [ ] 公開 URL 無痕視窗驗收
 
-**DoD**：公開 URL 可用，陌生人能自行跑完一次。
+**DoD**：公開 URL 可用，陌生人能自行跑完一次 → **容器層已通過，雲端部署待你授權**。
+
+#### Task 4 驗收（2026-08-30）
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **145 passed**
+- `docker build` → 406 MB，非 root（uid 1001），`/opt/mcp-env` 與 `/opt/app-env`
+  互不可見
+- 容器內 `/health` → ok；`/ready` → 3/3，1261 / 970 / 957 ms
+- **容器內完整端到端**：`POST /run` → SSE → `awaiting_approval` → `POST /approve`
+  → `media_ready` → `done`；事件契約檢查 PASS；6 個資產匿名 `curl` 全部 HTTP 200
+
+**`app/mcp.py` 加了 `MCP_SERVER_CMD`**。開發路徑是 `uv run --with mcp-clickhouse`，
+會在 agent 第一次需要時才下載套件；那在容器裡等於把一次套件下載放在冷啟動路徑上，
+而這個 demo 光是等 ClickHouse 醒來就已經要 25 秒。image 改成 build 時裝進
+`/opt/mcp-env`，`MCP_SERVER_CMD` 指向那個 binary。
+
+**第一次容器跑通分析、卻在媒體掛掉**，而且掛得很有代表性：
+
+```
+ClientError: 429 RESOURCE_EXHAUSTED
+```
+
+分析已經付完錢、閘門也已經過了，才在最後一步倒下——這是最糟的時機。
+`app/media.py` 現在對**暫時性**錯誤（429 / 503 / 500 / deadline / timeout）
+做 4 次指數退避重試，對**拒絕**（safety block、404）不重試——被擋的 prompt
+問幾次都是同一個答案，重試只是拿 demo 的時間去換一樣的結果。
+
+重建後再跑一次，重試真的觸發了兩次並且完成：
+
+```
+image: ClientError on attempt 1/4, retrying in 4s
+image: ClientError on attempt 2/4, retrying in 8s
+```
+
+**卡住的地方：我無法實際部署。** `gcloud` CLI 沒有登入帳號
+（`You do not currently have an active account selected`），而且這個專案的
+Service Usage API 是關的——Artifact Registry / Cloud Build / Cloud Run
+很可能也需要先啟用。這件事**現在就要處理**，不要留到 9/7。
 
 ### 🔒 當晚凍結。9/8 之後只修會導致 demo 崩潰的 bug。
 

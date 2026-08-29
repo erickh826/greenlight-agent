@@ -33,6 +33,30 @@ CONNECT_TIMEOUT_SEC = 120
 
 REQUIRED_ENV = ("CLICKHOUSE_HOST", "CLICKHOUSE_USER", "CLICKHOUSE_PASSWORD")
 
+# How the server is launched. The default resolves an ephemeral environment on
+# every start, which is right for development and wrong in a container: it
+# would put a package download on the cold-start path of a demo that is already
+# paying 25 seconds for ClickHouse to wake up. The image installs
+# mcp-clickhouse into its own virtualenv and sets MCP_SERVER_CMD to the binary,
+# which is also what keeps it away from the ADK's `mcp` version -- see the
+# module docstring.
+DEFAULT_SERVER_CMD = "uv"
+DEFAULT_SERVER_ARGS = ("run", "--with", "mcp-clickhouse", "--python", "3.13",
+                       "mcp-clickhouse")
+
+
+def server_command() -> tuple[str, list[str]]:
+    """(command, args) for the mcp-clickhouse subprocess.
+
+    MCP_SERVER_CMD overrides the whole thing; MCP_SERVER_ARGS is optional and
+    whitespace-separated. Set only the first in the container, where the binary
+    takes no arguments.
+    """
+    command = os.environ.get("MCP_SERVER_CMD", "").strip()
+    if not command:
+        return DEFAULT_SERVER_CMD, list(DEFAULT_SERVER_ARGS)
+    return command, os.environ.get("MCP_SERVER_ARGS", "").split()
+
 
 def _server_env() -> dict[str, str]:
     """Exactly what mcp-clickhouse needs, and nothing else."""
@@ -68,12 +92,12 @@ def build_clickhouse_tools() -> MCPToolset:
     The caller owns the returned toolset's lifetime and must await close() on
     it; the subprocess does not exit on its own.
     """
+    command, args = server_command()
     return MCPToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command="uv",
-                args=["run", "--with", "mcp-clickhouse", "--python", "3.13",
-                      "mcp-clickhouse"],
+                command=command,
+                args=args,
                 env=_server_env(),
             ),
             timeout=CONNECT_TIMEOUT_SEC,
@@ -132,5 +156,5 @@ async def warm_up(toolset: MCPToolset) -> list[tuple[str, float, bool]]:
     return results
 
 
-__all__ = ["build_clickhouse_tools", "warm_up", "WARM_UP_QUERIES",
-           "CONNECT_TIMEOUT_SEC"]
+__all__ = ["build_clickhouse_tools", "warm_up", "server_command",
+           "WARM_UP_QUERIES", "CONNECT_TIMEOUT_SEC"]

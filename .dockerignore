@@ -1,0 +1,29 @@
+# Credentials never enter the image. Cloud Run injects them from Secret
+# Manager; app/main.py only reads .env when the file happens to exist, which it
+# does not here.
+.env
+*.local.*
+
+.git
+.gitignore
+.github
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+# The image serves the demo. It does not need the ETL, the corpus, the
+# acceptance traces or the plans -- and data/ is several GB of pageviews.
+data/
+docs/
+etl/
+# ...except the vocabulary, which app/contracts.py and app/prompts.py import as
+# the single source of truth for every controlled term. Excluding the directory
+# without this makes the image build fail on the COPY, which is the good
+# outcome; shipping without it would fail at import time instead.
+!etl/vocab.py
+scripts/
+tests/
+suggestion/
+*.md

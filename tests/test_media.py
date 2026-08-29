@@ -421,3 +421,90 @@ def test_upload_can_use_public_demo_bucket_without_signing():
     assert url == blob.public_url
     assert blob.uploaded == (b"audio", AUDIO_MIME_TYPE)
     assert blob.signed_kwargs is None
+
+
+# --- transient failures during the expensive step ---------------------------
+
+def test_quota_and_availability_errors_are_retried():
+    """The failure that cost the first containerised run its storyboard.
+
+    The analysis had already been paid for and the gate already passed when
+    Vertex answered 429 RESOURCE_EXHAUSTED, which is the worst moment to give
+    up: everything expensive was already spent.
+    """
+    from app.media import is_transient
+
+    assert is_transient(RuntimeError(
+        "ClientError: 429 RESOURCE_EXHAUSTED. Resource exhausted."))
+    assert is_transient(RuntimeError("503 UNAVAILABLE"))
+    assert is_transient(TimeoutError("deadline exceeded"))
+
+
+def test_a_refusal_is_not_retried():
+    """A blocked prompt fails identically however many times it is asked.
+
+    Retrying it only spends the demo's clock arriving at the same answer.
+    """
+    from app.media import is_transient
+
+    assert not is_transient(RuntimeError(
+        "gemini-2.5-flash-image returned no image: block_reason=SAFETY, "
+        "'The prompt is blocked due to requesting to remove watermarks'"))
+    assert not is_transient(RuntimeError("404 NOT_FOUND publisher model"))
+
+
+def test_retry_gives_up_after_the_bound_and_reports_each_attempt():
+    from app.media import MEDIA_ATTEMPTS, _retrying
+    import app.media as media
+
+    calls, notes = [], []
+    media_backoff = media.MEDIA_BACKOFF_SEC
+    media.MEDIA_BACKOFF_SEC = 0.0            # no real sleeping in a unit test
+    try:
+        def always_429():
+            calls.append(1)
+            raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+        try:
+            _retrying(always_429, label="image", on_retry=notes.append)
+        except RuntimeError:
+            pass
+        assert len(calls) == MEDIA_ATTEMPTS
+        assert len(notes) == MEDIA_ATTEMPTS - 1
+        assert "image" in notes[0] and "retrying" in notes[0]
+
+        calls.clear(); notes.clear()
+
+        def refused():
+            calls.append(1)
+            raise RuntimeError("block_reason=SAFETY")
+
+        try:
+            _retrying(refused, label="image", on_retry=notes.append)
+        except RuntimeError:
+            pass
+        assert len(calls) == 1                # not retried
+        assert notes == []
+    finally:
+        media.MEDIA_BACKOFF_SEC = media_backoff
+
+
+def test_retry_returns_the_value_once_it_succeeds():
+    from app.media import _retrying
+    import app.media as media
+
+    media_backoff = media.MEDIA_BACKOFF_SEC
+    media.MEDIA_BACKOFF_SEC = 0.0
+    try:
+        state = {"n": 0}
+
+        def flaky():
+            state["n"] += 1
+            if state["n"] < 3:
+                raise RuntimeError("503 unavailable")
+            return b"frame"
+
+        assert _retrying(flaky, label="image") == b"frame"
+        assert state["n"] == 3
+    finally:
+        media.MEDIA_BACKOFF_SEC = media_backoff

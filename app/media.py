@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import time
 import wave
 from dataclasses import dataclass
 from datetime import timedelta
@@ -171,6 +172,46 @@ def audio_duration_sec(audio: bytes, narration: str) -> float:
         return estimate_duration_sec(narration)
 
 
+# Vertex answers 429 RESOURCE_EXHAUSTED under per-project image quota, and a
+# demo generates six assets back to back. The first containerised run reached
+# the approval gate cleanly and then lost its storyboard to exactly this --
+# after the analysis had already been paid for, which is the worst moment for
+# it. These are the failures that mean "ask again", as opposed to a refusal or
+# a bad prompt, which will fail identically however many times it is retried.
+TRANSIENT_MARKERS = ("429", "resource_exhausted", "resource exhausted",
+                     "503", "unavailable", "500", "internal error",
+                     "deadline", "timeout", "temporarily")
+MEDIA_ATTEMPTS = 4
+MEDIA_BACKOFF_SEC = 4.0
+
+
+def is_transient(error: BaseException) -> bool:
+    text = f"{type(error).__name__} {error}".lower()
+    return any(marker in text for marker in TRANSIENT_MARKERS)
+
+
+def _retrying(fn, *, label: str,
+              on_retry: Callable[[str], None] | None = None):
+    """Call fn(), retrying transient failures with exponential backoff.
+
+    Bounded and only for transient errors: a prompt the safety filter refuses
+    fails the same way every time, and retrying it burns the demo's clock to
+    arrive at the same answer.
+    """
+    for attempt in range(1, MEDIA_ATTEMPTS + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            if attempt == MEDIA_ATTEMPTS or not is_transient(exc):
+                raise
+            delay = MEDIA_BACKOFF_SEC * (2 ** (attempt - 1))
+            if on_retry:
+                on_retry(f"{label}: {type(exc).__name__} on attempt "
+                         f"{attempt}/{MEDIA_ATTEMPTS}, retrying in "
+                         f"{delay:.0f}s")
+            time.sleep(delay)
+
+
 @dataclass(frozen=True)
 class SynthesizedAudio:
     data: bytes
@@ -252,7 +293,9 @@ class GoogleMediaClient:
     def __init__(self, *, bucket_name: str, image_model: str,
                  tts_voice: str, signed_url_ttl_sec: int,
                  tts_model: str = DEFAULT_TTS_MODEL,
-                 public_assets: bool = False) -> None:
+                 public_assets: bool = False,
+                 on_retry: Callable[[str], None] | None = None) -> None:
+        self.on_retry = on_retry
         self.bucket_name = bucket_name
         self.image_model = image_model
         self.tts_model = tts_model
@@ -264,7 +307,8 @@ class GoogleMediaClient:
         self._storage_client = None
 
     @classmethod
-    def from_env(cls) -> "GoogleMediaClient":
+    def from_env(cls, *, on_retry: Callable[[str], None] | None = None
+                 ) -> "GoogleMediaClient":
         bucket = os.environ.get("GCS_BUCKET", "").strip()
         if not bucket:
             raise RuntimeError("GCS_BUCKET is required for media generation")
@@ -278,10 +322,13 @@ class GoogleMediaClient:
             signed_url_ttl_sec=_env_int("GCS_SIGNED_URL_TTL_SEC",
                                         DEFAULT_SIGNED_URL_TTL_SEC),
             public_assets=_env_bool("GCS_PUBLIC_ASSETS"),
+            on_retry=on_retry,
         )
 
     async def generate_image(self, prompt: str) -> bytes:
-        return await asyncio.to_thread(self._generate_image_sync, prompt)
+        return await asyncio.to_thread(
+            _retrying, lambda: self._generate_image_sync(prompt),
+            label="image", on_retry=self.on_retry)
 
     def _generate_image_sync(self, prompt: str) -> bytes:
         from google import genai
@@ -306,7 +353,9 @@ class GoogleMediaClient:
         return bytes(blob.data)
 
     async def synthesize(self, text: str) -> SynthesizedAudio:
-        return await asyncio.to_thread(self._synthesize_sync, text)
+        return await asyncio.to_thread(
+            _retrying, lambda: self._synthesize_sync(text),
+            label="narration", on_retry=self.on_retry)
 
     def _synthesize_sync(self, text: str) -> SynthesizedAudio:
         from google import genai
@@ -419,7 +468,7 @@ async def render_storyboard_media(
     Sequential on purpose: this is the expensive section of the demo, and doing
     one image plus one narration at a time is predictable under quota.
     """
-    client = client or GoogleMediaClient.from_env()
+    client = client or GoogleMediaClient.from_env(on_retry=progress)
     assets: list[SceneAsset] = []
     for scene in plan.scenes:
         scene_no = scene.scene_index + 1
@@ -560,6 +609,7 @@ __all__ = [
     "AUDIO_MIME_TYPE", "DEFAULT_IMAGE_MODEL", "DEFAULT_SIGNED_URL_TTL_SEC",
     "DEFAULT_TTS_MODEL", "DEFAULT_TTS_VOICE", "GoogleMediaClient",
     "IMAGE_ASPECT_RATIO", "wav_from_pcm", "pcm_rate_from_mime",
+    "is_transient", "MEDIA_ATTEMPTS", "TRANSIENT_MARKERS",
     "IMAGE_MIME_TYPE", "LETTERING_PATTERNS", "MIN_SCENE_SEC", "MediaClient",
     "SynthesizedAudio", "WORDS_PER_SECOND", "audio_duration_sec",
     "compose_image_prompt", "estimate_duration_sec", "lettering_requests",
