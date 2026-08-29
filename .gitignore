@@ -30,6 +30,9 @@ data/
 !docs/m2-recombine-phase-b-grounded-trace.log
 !docs/m2-predict-agent-trace.log
 !docs/m2-greenlight-trace.log
+!docs/m3-storyboard-trace.log
+docs/m3-media-assets*.json
+docs/m3-media-trace*.log
 .idea/
 .vscode/
 
@@ -42,3 +45,5 @@ suggestion/
 # CMU Movie Summary Corpus — CC BY-SA 3.0, downloaded at ETL time, never committed
 data/MovieSummaries/
 data/MovieSummaries.tar.gz
+
+manual/

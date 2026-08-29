@@ -395,40 +395,301 @@ Phase B 沒有 tools，它必須把 Phase A trace 當成「引用的資料」，
 ## M3 — 媒體與前端
 
 > 9/3–9/7，12.5 小時
+> **目前分支**：`feature/m3-media-frontend-plan`
+> **執行計劃**：`docs/M3_MEDIA_FRONTEND_PLAN.md`
+> **狀態**：M3 已完成並部署到公開 URL。下一個 milestone 是 M4 提交。
+
+M3 的順序已於 2026-08-29 調整：先做公開 demo 的 API/SSE shell 與成本保護，
+再做 Imagen/TTS 媒體。原因是 Storyboard 可以降級，但評審看得到 SQL trace、
+雙方案、approve gate 這條主路徑不能缺。
 
 ### 9/3 四（3.5h）
 
-- [ ] `app/media.py`：Imagen 生圖，固定風格前綴 ＋ seed
-- [ ] GCS 上傳與 URL 產生
-- [ ] `StoryboardAgent`：大綱 → 3 場景描述 → 生圖
+- [x] `app/main.py`：FastAPI endpoints
+      `GET /`、`POST /run`、`GET /events/{run_id}`、
+      `POST /approve/{run_id}`、`GET /runs/{run_id}`、`GET /health`、`GET /ready`
+- [x] API path 接上既有 `run_greenlight()`；`run_greenlight()` 改發
+      `awaiting_approval`（非終止），`done` 由呼叫端決定何時發
+- [x] 公開 demo 保護：`ANALYSIS_SLOT` 一次一個分析、每 IP 10 分鐘 3 次、
+      prompt 400 字上限、409 busy response
+- [x] `InProcessEventBus` replay hardening：history cap、QueueFull 安全、
+      `close()` 保留 history、`discard()` 與 `RunStore.sweep_ids()` 成對回收
+- [x] `web/index.html` 最小骨架：啟動 run、接 SSE、顯示 SQL/rows/latency、
+      顯示 proposals/scores、送 approve
+- [x] `scripts/serve.sh`：本機服務進入點（和 agent 同一套環境衛生）
 
-**DoD**：3 張風格一致的 16:9 圖片，可由 URL 存取。
+**DoD**：瀏覽器能看到 M2 agent 查詢過程，analysis 完成後停在 approve gate；
+unit tests 不打 Gemini / ClickHouse / Imagen → **PASS**。
+
+驗收（2026-08-29，提前完成）：
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **109 passed**（新增 21 個：
+  `tests/test_events.py` 8、`tests/test_api.py` 13），全部用 fake analysis，
+  不打任何付費 API，0.31s 跑完
+- `python3 -m compileall app scripts etl tests` → PASS
+- 真實伺服器 smoke：`PORT=8099 ./scripts/serve.sh` → `/health`、`/`、`/ready` 皆正常
+- **真實端到端（走 API，不是 CLI）**：`POST /run` → SSE 41 個事件依序抵達 →
+  `awaiting_approval` → `POST /approve` → `done`。
+  grounded `The Unveiling` composite 58.6（high, 12 evidence）、
+  wildcard `The Obsidian Vault` composite 42.3（high, 7 evidence）
+
+**開工前查出的三件 plan 沒涵蓋的事**：
+
+1. **`error` 事件會關掉 SSE 訂閱，而 pipeline 拿它報可復原的狀況。**
+   `app/events.py` 的 `subscribe()` 收到 `done` 或 `error` 就 return，
+   而 `app/pipeline.py` 有四處發 `error`：Phase B 某次嘗試被拒（**馬上重試**）、
+   stage 撞到 retry/turn 上限、一個 variant 失敗（另一個還在跑）、stage 例外。
+   也就是說上一輪那個 214 字元 logline 被拒然後重試成功的情況，
+   **在瀏覽器裡會表現成「串流無聲無息停住」**——CLI 一路跑完，SSE 訂閱者
+   在第一次重試就被踢掉。CLI 不訂閱自己的 bus，所以 M2 的 12/12 完全照不到。
+   現在事件分三類：`agent_retry`（還會再試）、`stage_failed`（這一段放棄，
+   run 繼續）、`error`（run 結束）。`TERMINAL_EVENTS` 是具名常數，
+   `tests/test_events.py` 直接斷言前兩者不在裡面。
+   **這輪真實 API run 就驗到了**：中途有一次真的 ClickHouse code 47，
+   串流照樣往下跑了 8 次 tool call 到 `awaiting_approval`。
+2. **核准閘門原本會把唯一 `/run` 名額無限期佔住。** 決策：名額只護分析階段，
+   proposals 一產生就釋放；媒體另用 `MEDIA_SLOT`；停在閘門的 run 設 10 分鐘
+   `APPROVAL_TTL_SEC` 只為記憶體回收。這樣一個評審看完方案就去吃飯，
+   不會讓後面每個訪客都拿到 busy。`RunStore` 因此要能同時持有多個等核准的 run。
+3. **`/health` 不能做 MCP warm-up。** plan Task 4 原本要 `/health` 跑
+   `SELECT 1`，但實測 `/ready` 的 connectivity 冷啟動是 **25.4 秒**
+   （另兩個 MV 各約 0.96 秒）。startup probe 等不了，會殺掉容器再重啟進同一個
+   冷啟動，無窮迴圈。已拆成便宜的 `/health`（liveness）與 `/ready`（做 warm-up）。
+
+**另外兩個順手修掉的**：`subscribe()` 的 replay 對 bounded queue 逐筆
+`put_nowait`，history 超過 `MAX_QUEUED` 就把 `QueueFull` 丟在讀者身上；
+`close()` 原本直接丟掉 history，導致 run 結束後重新整理頁面看不到 trace，
+現在保留 history 並在 sweep 時才 `discard()`。
+
+**驗收補修**：API `_analyse()` 會暫存 pipeline 發出的 `awaiting_approval`
+事件，等 proposals/scores 寫進 `RunStore` 並切到 `AWAITING_APPROVAL` 後才
+發布 SSE。這避免很快的前端收到 gate 事件後立刻打 `/approve` 時，狀態機仍是
+`running` 而偶發 409。
 
 ### 9/4 五（3.5h）
 
-- [ ] Cloud TTS 旁白（Chirp 3 HD）
-- [ ] 音訊上傳 GCS，取得 duration
-- [ ] `SceneAsset` 契約填充完成
+- [x] `app/agents/storyboard.py`：approved proposal → exactly 3 scene plans
+      （M3 Task 1，2026-08-29 完成）
+- [x] `app/media.py` 前半：`StoryboardPlan` 驗證、`HOUSE_STYLE`、prompt 組裝、
+      時長估算——**不花錢就能查的部分**
+- [x] `app/media.py` 後半：`gemini-2.5-flash-image` 生圖，
+      輸出 16:9 scene still
+- [x] GCS 上傳與 URL 產生（signed URL；可用 `GCS_PUBLIC_ASSETS=true`
+      明確切 public demo bucket）
+- [x] `gemini-2.5-flash-preview-tts` 旁白（raw PCM 包成 WAV，
+      從 WAV header 算實際時長）
+- [x] `SceneAsset` 契約填充完成；媒體錯誤會 publish terminal `error` event
+- [x] `/approve` 改成背景 task：同步只切到 `STORYBOARD` 並排入
+      `_render_approved_variant()`；`MEDIA_SLOT` 保護 StoryboardAgent +
+      Gemini image/TTS + GCS；`media_ready` 等 `run.scenes` 寫入後才發布
+- [ ] Task 2 付費 real smoke：
+      `./scripts/run_agent.sh scripts/run_m3_media.py --yes`
 
-**DoD**：圖 ＋ 音訊可播放。
+**DoD**：3 張風格一致的 16:9 圖片可由 URL 存取；音訊可播放或明確走
+Google-only fallback。
+
+#### Task 2 mock 驗收（2026-08-29，提前完成）
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **141 passed**（不打 Gemini /
+  ClickHouse / Imagen / TTS / GCS）
+- `python3 -m compileall app scripts etl tests` → PASS
+- `git diff --check` → PASS
+- `PORT=8099 ./scripts/serve.sh` smoke → `/health` PASS、`/` 200、
+  `/ready` 3/3 PASS；這次 connectivity 冷路徑 **23.2s**，
+  再次確認 `/ready` 不能放 startup/liveness probe
+- `./scripts/run_agent.sh scripts/run_m3_media.py` → DRY RUN PASS，只讀
+  `docs/m3-storyboard-plan.json` 並列出 composed Imagen prompts；不帶 `--yes`
+  不呼叫 Imagen / TTS / GCS
+- real smoke 入口已加：`scripts/run_m3_media.py --yes`。輸出的
+  `docs/m3-media-assets.local.json` / trace 被 `.gitignore` 保護，避免
+  signed URL 誤 commit。
+
+#### Task 1 驗收（2026-08-29，提前完成）
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **130 passed**（`tests/test_media.py` 新增 21）
+- `./scripts/run_agent.sh scripts/run_m3_storyboard.py` → **9/9 PASS**，
+  輸出 `docs/m3-storyboard-plan.json` 與 trace
+
+**為什麼 plan 是獨立產物**：媒體是整條 pipeline 唯一不可逆的花費。核准閘門之前
+的一切都能用幾個 ClickHouse 查詢重跑，三張 Imagen ＋ 三段 TTS 不行。所以先產出
+一個**不花錢就能驗**的 `StoryboardPlan`，再拿它去生媒體。要防的不是醜圖，
+是**三張很好但屬於另一部片的圖**——所以驗證項目是 title / variant / 詞彙沒有漂移，
+而不是美學。
+
+`converge_with_retry()` 從 `recombine_phase_b` 抽出來共用：兩者都是「無 tools ＋
+output_schema ＋ 被拒就帶著錯誤原文重試」，重試預算和 SQL 一樣是
+`SQL_RETRY_LIMIT + 1`。
+
+**第一次真實跑就抓到三個問題**（DoD 擋下來的，不是事後發現的）：
+
+1. **negation-blind 的字幕偵測誤判自己。** `HOUSE_STYLE` 本身寫著
+   「No text, no captions, no logos, no watermarks」，而驗收腳本拿**組合後**的
+   prompt 去查，於是三個場景全被標成「要求畫面內文字」。兩處都錯：腳本應該查
+   模型自己寫的 `image_prompt`，而 `lettering_requests()` 應該忽略被否定的提及。
+   否定只涵蓋自己的子句——否則 `no watermark, but a title card reading THE END`
+   會因為那個 `no` 還在回看窗內而整句被當成否定。
+2. **風格被講了三次。** 模型把 `style` 幾乎逐字設成 house style，
+   而場景 prompt 又各自重述一次景深/顆粒/色調，組合後同一組底片詞彙在主體出現
+   之前重複三輪。加了 `restates_house_style()` 檢查（內容詞重疊 ≥ 70% 即判定），
+   指令也改成「style 要寫這部片自己的樣子」。重跑後模型給的是
+   「Gritty urban realism, rain-slicked streets, institutional interiors...」。
+3. **prompt 順序放反了。** 原本是 house style 開頭，等於在畫面主體前面塞四個
+   子句的底片術語。Imagen 讀自然語言、開頭權重最高，改成
+   **moment → 這部片的 style → house style**。
+
+**已在 Task 2 修掉**：`/approve` 不再同步走完 `STORYBOARD → DONE` 並
+`bus.close()`。現在 approve 只排背景 task；`done` 與 `close()` 在媒體完成後才發，
+`media_ready` 則等 `run.scenes` 寫進 `RunStore` 後發布。
 
 ### 9/5–9/6 週末（2h）
 
-- [ ] `web/index.html` 骨架
-- [ ] SSE 接收與事件渲染
-- [ ] **證據流區塊：顯示 SQL 原文、列數、耗時**
+- [x] 雙方案對比區塊 ＋ 核准按鈕
+- [x] **證據流區塊：顯示 SQL 原文、列數、耗時、錯誤與 retry**
+- [x] CSS Ken Burns 播放器（`transform: scale` ＋ `translate`，
+      `audio` 結束事件切換場景，無音訊則走 `duration_sec` timer）
+- [x] Mobile / desktop layout 檢查，避免文字或按鈕重疊
 
-**DoD**：瀏覽器能即時看到 agent 的查詢過程。
+**DoD**：瀏覽器可完整跑 run → SSE evidence → proposal compare → approve →
+storyboard playback → **PASS**。
+
+#### Task 2 ＋ Task 3 驗收（2026-08-30）
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **141 passed**
+- `./scripts/run_agent.sh scripts/run_m3_media.py --yes` → **4/4 PASS**
+- **真實端到端走 API**：`POST /run` → 68 個 SSE 事件 → `awaiting_approval`
+  → `POST /approve` → `media_ready` → `done`；事件順序與前端讀的每個欄位
+  都以程式檢查過（`tool_call.args.query`、`tool_result.rows/elapsed_ms`、
+  proposal/score/evidence/scene 欄位、`gate → media_ready → done` 排序）
+- 資產以匿名 `curl` 驗證：3 張 1344×768（16:9）PNG ＋ 3 段 24 kHz WAV，
+  全部 HTTP 200、content-type 正確、時長 8.5 / 11.1 / 8.2 秒（從音檔讀出來的，
+  不是字數估的）
+- 前端以 headless Chromium 在 1440×1000 與 390×844 兩個尺寸截圖檢查：
+  **0 個版面問題、0 個 JS error**，11 種 SSE 事件型別全部有處理
+
+**Task 2：plan 指定的兩個 Google 服務，這個專案一個都用不了**
+
+- Imagen 全系列（`imagen-4.0-generate-001`、fast 版、`imagen-3.0-generate-002`）
+  一律 `404 not found or your project does not have access`
+- Cloud Text-to-Speech API 沒啟用，而且**沒辦法從這裡啟用**——Service Usage API
+  本身也是關的，「用來開 API 的那個 API」是關的
+
+改用同一個 Vertex surface（agent 已在用、不需要多開任何 API，仍然 Google-only）：
+`gemini-2.5-flash-image` ＋ `gemini-2.5-flash-preview-tts`。TTS 回 raw PCM，
+用 stdlib `wave` 包成 WAV——不是為了省一個轉檔器，是因為這樣
+`wav_duration_sec()` 就變成**實測**而不是字數估算的 fallback。
+既有的 `MediaClient` protocol、signed URL 路徑、循序生成全部保留，只換兩個 adapter。
+
+**然後第一次真的生成被整個擋掉**：
+
+```
+block_reason=SAFETY
+'The prompt is blocked due to requesting to remove watermarks'
+```
+
+house style 結尾的 `no logos, no watermarks` 被分類器讀成「要求移除浮水印」。
+但那句不能拿掉——沒有它的探測圖右下角就烙著 `02:47 AM` 和一個膠卷圖示。
+改成 `Clean frame with no lettering, captions or on-screen graphics.`，
+意圖不變、不踩觸發詞。**負面提示的措辭本身會決定請求會不會被拒。**
+
+資產走公開 bucket（`greenlight-agent-demo`）。signed URL 需要 service account，
+而本機的 user ADC 簽不了名——那會變成「本機可以、Cloud Run 可以，但兩邊行為不同」，
+留到登場前才發現。
+
+**Task 3：截圖檢查抓到兩個「測試看不到」的問題**
+
+1. **storyboard 在按 Play 之前是一塊純黑**。技術上正確（還沒開始播），
+   但讀起來像圖片載入失敗。改成建好就顯示第一格靜態畫面，
+   Ken Burns 動畫改由 `.playing` class 觸發，播完停在最後一格而不是淡回黑。
+2. **證據流被 schema 階段的 JSON 洗版**。Phase B / converge 的模型輸出就是
+   一整包 JSON，`agent_output` 原樣印出來會把這個面板存在的理由（SQL）擠掉。
+   結構化輸出現在收合成一行摘要，散文照原樣顯示。
 
 ### 9/7 一（3.5h）
 
-- [ ] 雙方案對比區塊 ＋ 核准按鈕
-- [ ] CSS Ken Burns 播放器（`transform: scale` ＋ `translate`，`audio.timeupdate` 切換場景）
-- [ ] Dockerfile ＋ Cloud Run 部署（**Phase 1 基礎版**：單容器 stdio MCP；策略見 `docs/M4_DEPLOYMENT_PROMPT.md`）
-- [ ] Secret Manager 設定
-- [ ] **無痕視窗完整測試一次**
+- [x] Dockerfile ＋ `.dockerignore`（**Phase 1 基礎版**：單容器 stdio MCP、
+      雙 venv 隔離、非 root、預裝 mcp-clickhouse）
+- [x] README 更新：實際部署架構、Google-only AI 服務、ClickHouse/MCP runtime path、
+      score 不是票房預測的邊界聲明、部署指令
+- [x] **容器內完整跑通一次**（等同無痕：容器沒有 `.env`、沒有 repo、
+      只有 image ＋ 注入的環境變數）
+- [x] Secret Manager：`clickhouse-host`、`clickhouse-password`
+- [x] `gcloud run deploy` 實際部署
+- [x] **公開 URL 無痕視窗驗收（真實瀏覽器）**
 
-**DoD**：公開 URL 可用，陌生人能自行跑完一次。
+**DoD**：公開 URL 可用，陌生人能自行跑完一次 → **PASS**。
+
+## 🟢 上線
+
+**https://greenlight-277057547230.us-central1.run.app**
+
+`us-central1` / `min=1 max=1` / `no-cpu-throttling` / `timeout=900` /
+`concurrency=10` / 2 vCPU / 2 GiB。憑證由 Secret Manager 注入，image 內沒有。
+
+#### Task 4 驗收（2026-08-30）
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **145 passed**
+- `docker build` → 406 MB，非 root（uid 1001），`/opt/mcp-env` 與 `/opt/app-env`
+  互不可見
+- 容器內 `/health` → ok；`/ready` → 3/3，1261 / 970 / 957 ms
+- **容器內完整端到端**：`POST /run` → SSE → `awaiting_approval` → `POST /approve`
+  → `media_ready` → `done`；事件契約檢查 PASS；6 個資產匿名 `curl` 全部 HTTP 200
+
+**`app/mcp.py` 加了 `MCP_SERVER_CMD`**。開發路徑是 `uv run --with mcp-clickhouse`，
+會在 agent 第一次需要時才下載套件；那在容器裡等於把一次套件下載放在冷啟動路徑上，
+而這個 demo 光是等 ClickHouse 醒來就已經要 25 秒。image 改成 build 時裝進
+`/opt/mcp-env`，`MCP_SERVER_CMD` 指向那個 binary。
+
+**第一次容器跑通分析、卻在媒體掛掉**，而且掛得很有代表性：
+
+```
+ClientError: 429 RESOURCE_EXHAUSTED
+```
+
+分析已經付完錢、閘門也已經過了，才在最後一步倒下——這是最糟的時機。
+`app/media.py` 現在對**暫時性**錯誤（429 / 503 / 500 / deadline / timeout）
+做 4 次指數退避重試，對**拒絕**（safety block、404）不重試——被擋的 prompt
+問幾次都是同一個答案，重試只是拿 demo 的時間去換一樣的結果。
+
+重建後再跑一次，重試真的觸發了兩次並且完成：
+
+```
+image: ClientError on attempt 1/4, retrying in 4s
+image: ClientError on attempt 2/4, retrying in 8s
+```
+
+#### 部署驗收（2026-08-30，公開 URL）
+
+- 啟用 API：`run` / `artifactregistry` / `cloudbuild` / `secretmanager` / `storage`
+- runtime service account 授權：`secretmanager.secretAccessor`、
+  `aiplatform.user`、`storage.objectAdmin`
+- **真實瀏覽器無痕測試 → PASS**：載入頁面 → 按 Run → 證據流出現 SQL 原文 →
+  雙方案（`The Unveiling Shadow` 54.9/57.2/**55.8** vs
+  `The Corruptor's Redemption` 57.1/55.5/**56.5**）→ approve →
+  3 張 1344×768 分鏡 ＋ 9.5/9.5/9.8 秒旁白 → done。
+  **0 版面問題、0 JS error。**
+
+**部署過程踩到三件事，都值得記：**
+
+1. **`.gcloudignore` 的 `!etl/vocab.py` 不生效。** Cloud Build 在 step 13
+   `COPY failed: etl/vocab.py: file does not exist`。gitignore 語意
+   （gcloud 用的）**不允許**把已被排除目錄底下的檔案重新納入，而 Docker 的
+   實作允許——所以 `.dockerignore` 本機建得起來、`.gcloudignore` 建不起來。
+   兩個檔案措辭一致、行為不一致。改成 `etl/*`（排除內容而非目錄）才能被
+   `!etl/vocab.py` 抵銷。
+2. **`--timeout=300` 比一次完整 run 還短。** Cloud Run 實測整趟 335 秒
+   （分析 230 秒 ＋ 媒體 105 秒），SSE 連線在 284 秒被切斷，`media_ready`
+   沒送到。瀏覽器其實救得回來（`EventSource` 會自動重連，bus 會把 history
+   重播給新訂閱者，前端有去重），但主路徑不該依賴那層保險。改成 `--timeout=900`，
+   `docs/` 與 README 一併更新。
+3. **本機 image 是 arm64，Cloud Run 要 amd64。** 所以走 Cloud Build 而不是
+   `docker push` 本機那顆——那顆只是用來在本機驗證行為。
+
+**`/ready` 在雲端把 `/health` 拆開的理由講得更清楚了**：connectivity 冷路徑
+**24.1 秒**，暖起來之後兩個 MV 查詢各 48.5 / 53.4 毫秒。startup probe 打
+`/health` 才不會被那 24 秒殺掉。
+
+**媒體重試在正式環境真的救了一次**：無痕那輪 scene 3 的圖連續撞了三次配額，
+`retrying in 4s / 8s / 16s`，然後成功——畫面上看得到。
 
 ### 🔒 當晚凍結。9/8 之後只修會導致 demo 崩潰的 bug。
 

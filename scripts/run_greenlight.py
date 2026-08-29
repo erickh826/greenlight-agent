@@ -39,7 +39,7 @@ from app.analogue_scoring import partition  # noqa: E402
 from app.config import BUDGET_BANDS, MIN_SAMPLE_SIZE, PROPOSAL_VARIANTS  # noqa: E402
 from app.contracts import GreenlightRunResult, PredictionScore  # noqa: E402
 from app.env import load_env, redact  # noqa: E402
-from app.events import Event, InProcessEventBus  # noqa: E402
+from app.events import Event, InProcessEventBus, make_event  # noqa: E402
 from app.mcp import build_clickhouse_tools, warm_up  # noqa: E402
 from app.pipeline import (  # noqa: E402
     DEFAULT_PROMPT, RECOMBINE_REQUIRED_SURFACES, recombine_surfaces_seen,
@@ -55,7 +55,7 @@ TRACE_PATH = ROOT / "docs" / "m2-greenlight-trace.log"
 # client that never receives tool_call has no way to show the query, which is
 # the one thing this project asks a viewer to look at.
 REQUIRED_EVENTS = ("agent_start", "tool_call", "tool_result", "agent_output",
-                   "done")
+                   "awaiting_approval", "done")
 
 
 class Recorder:
@@ -107,6 +107,13 @@ class Recorder:
             self.write(event.get("message", ""))
         elif kind == "error":
             self.write(f"!! {agent}: {event.get('message')}")
+        elif kind == "agent_retry":
+            self.write(f"    ~~ {agent} retry {event.get('retry', '')}: "
+                       f"{event.get('message')}")
+        elif kind == "stage_failed":
+            self.write(f"!! {agent} gave up: {event.get('message')}")
+        elif kind == "awaiting_approval":
+            self.write("\n=== analysis complete; awaiting approval ===")
         elif kind == "done":
             self.write("\n=== run complete ===")
 
@@ -172,6 +179,9 @@ async def main() -> int:
 
         RESULT_PATH.write_text(result.model_dump_json(indent=2) + "\n",
                                encoding="utf-8")
+        # For the CLI the run really is over -- there is nobody to approve to.
+        # The API publishes this only after the storyboard.
+        rec.emit(make_event("done", agent="root", run_id=run.run_id))
 
         # Scoring is done and the gate is next: the user picks a variant. The
         # agents do not await that click -- see app/state.py.

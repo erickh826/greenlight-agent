@@ -1,0 +1,61 @@
+=== M3 Task 1: storyboard planning ===
+timestamp: 2026-08-29T02:55:38.130062+00:00
+model:     gemini-2.5-flash
+proposal:  The Unveiling (grounded)
+source:    /Users/kahochow/startup/greenlight-agent/docs/m2-greenlight-run.json
+tools:     disabled
+media:     none generated -- this is the plan only
+
+=== storyboard ===
+--- storyboard output (2171 chars) ---
+
+--- StoryboardPlan ---
+{
+  "proposal_title": "The Unveiling",
+  "variant": "grounded",
+  "style": "Gritty urban realism, rain-slicked streets, institutional interiors, cold light filtering through blinds, a sense of oppressive order giving way to chaos.",
+  "scenes": [
+    {
+      "scene_index": 0,
+      "description": "Detective Miller, a seasoned investigator, sits alone in his dimly lit office, meticulously reviewing case files, unaware of the vast deception unfolding around him.",
+      "image_prompt": "A middle-aged detective sits at a cluttered desk in a stark, dimly lit police precinct office at night, reading a file. Rain streaks down the window behind him. His face is tired but focused.",
+      "narration": "Detective Miller has seen it all, or so he thinks. In the quiet hum of his office, the world still makes sense."
+    },
+    {
+      "scene_index": 1,
+      "description": "Miller stares at a hidden document, its contents revealing a chilling truth that shatters his perception of justice and authority. His face reflects a profound loss of innocence.",
+      "image_prompt": "Close-up on Detective Miller's face, illuminated by the glow of a computer screen or a file he holds. His eyes are wide with shock and dawning horror as he reads a classified document. The background is blurred into dark office clutter.",
+      "narration": "But a single piece of evidence pulls back the curtain, revealing a truth far darker than any crime he's ever investigated. His world unravels."
+    },
+    {
+      "scene_index": 2,
+      "description": "Now a reluctant hero, Miller stands resolute in a shadowy, abandoned archive, a single beam of light illuminating his determined face as he prepares to expose the hidden conspiracy.",
+      "image_prompt": "Detective Miller stands in a vast, dusty, abandoned government archive, surrounded by towering shelves of forgotten files. A single shaft of light cuts through the gloom, illuminating his determined, grim face. He holds a crucial document.",
+      "narration": "With his own innocence lost, he must now confront the forces that thrive in the shadows, to bring the truth to light before it consumes everything."
+    }
+  ]
+}
+
+--- Composed Imagen prompts (not sent) ---
+[0] A middle-aged detective sits at a cluttered desk in a stark, dimly lit police precinct office at night, reading a file. Rain streaks down the window behind him. His face is tired but focused. Gritty urban realism, rain-slicked streets, institutional interiors, cold light filtering through blinds, a sense of oppressive order giving way to chaos. Cinematic 35mm film still, anamorphic widescreen, shallow depth of field, naturalistic motivated lighting with deep shadows, muted desaturated palette with one warm accent, fine film grain. No text, no captions, no logos, no watermarks.
+    narration ~8.8s: Detective Miller has seen it all, or so he thinks. In the quiet hum of his office, the world still makes sense.
+[1] Close-up on Detective Miller's face, illuminated by the glow of a computer screen or a file he holds. His eyes are wide with shock and dawning horror as he reads a classified document. The background is blurred into dark office clutter. Gritty urban realism, rain-slicked streets, institutional interiors, cold light filtering through blinds, a sense of oppressive order giving way to chaos. Cinematic 35mm film still, anamorphic widescreen, shallow depth of field, naturalistic motivated lighting with deep shadows, muted desaturated palette with one warm accent, fine film grain. No text, no captions, no logos, no watermarks.
+    narration ~9.6s: But a single piece of evidence pulls back the curtain, revealing a truth far darker than any crime he's ever investigated. His world unravels.
+[2] Detective Miller stands in a vast, dusty, abandoned government archive, surrounded by towering shelves of forgotten files. A single shaft of light cuts through the gloom, illuminating his determined, grim face. He holds a crucial document. Gritty urban realism, rain-slicked streets, institutional interiors, cold light filtering through blinds, a sense of oppressive order giving way to chaos. Cinematic 35mm film still, anamorphic widescreen, shallow depth of field, naturalistic motivated lighting with deep shadows, muted desaturated palette with one warm accent, fine film grain. No text, no captions, no logos, no watermarks.
+    narration ~10.4s: With his own innocence lost, he must now confront the forces that thrive in the shadows, to bring the truth to light before it consumes everything.
+
+=== Storyboard DoD ===
+  [PASS] 規劃階段沒有 tool call: 0 次
+  [PASS] 輸出 parse 成 StoryboardPlan: parsed
+  [PASS] plan 通過對已核准 proposal 的驗證: ok
+  [PASS] 正好 3 個場景: 3 個
+  [PASS] title 與 variant 沒有被改動: 'The Unveiling' / grounded
+  [PASS] 沒有任何 image_prompt 要求畫面內文字: 無
+  [PASS] 每個場景都有 description / image_prompt / narration: 齊全
+  [PASS] 三個 prompt 共用同一個 house style: 一致
+  [PASS] style 是這部片自己的樣子，不是把 house style 再講一次: Gritty urban realism, rain-slicked streets, institutional interiors, cold light filtering 
+
+re-validated from file: ok
+plan_path: /Users/kahochow/startup/greenlight-agent/docs/m3-storyboard-plan.json
+
+result: PASS -- 三個場景通過驗證，尚未產生任何媒體。

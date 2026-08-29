@@ -1,0 +1,25 @@
+{
+  "proposal_title": "The Unveiling",
+  "variant": "grounded",
+  "style": "Gritty urban realism, rain-slicked streets, institutional interiors, cold light filtering through blinds, a sense of oppressive order giving way to chaos.",
+  "scenes": [
+    {
+      "scene_index": 0,
+      "description": "Detective Miller, a seasoned investigator, sits alone in his dimly lit office, meticulously reviewing case files, unaware of the vast deception unfolding around him.",
+      "image_prompt": "A middle-aged detective sits at a cluttered desk in a stark, dimly lit police precinct office at night, reading a file. Rain streaks down the window behind him. His face is tired but focused.",
+      "narration": "Detective Miller has seen it all, or so he thinks. In the quiet hum of his office, the world still makes sense."
+    },
+    {
+      "scene_index": 1,
+      "description": "Miller stares at a hidden document, its contents revealing a chilling truth that shatters his perception of justice and authority. His face reflects a profound loss of innocence.",
+      "image_prompt": "Close-up on Detective Miller's face, illuminated by the glow of a computer screen or a file he holds. His eyes are wide with shock and dawning horror as he reads a classified document. The background is blurred into dark office clutter.",
+      "narration": "But a single piece of evidence pulls back the curtain, revealing a truth far darker than any crime he's ever investigated. His world unravels."
+    },
+    {
+      "scene_index": 2,
+      "description": "Now a reluctant hero, Miller stands resolute in a shadowy, abandoned archive, a single beam of light illuminating his determined face as he prepares to expose the hidden conspiracy.",
+      "image_prompt": "Detective Miller stands in a vast, dusty, abandoned government archive, surrounded by towering shelves of forgotten files. A single shaft of light cuts through the gloom, illuminating his determined, grim face. He holds a crucial document.",
+      "narration": "With his own innocence lost, he must now confront the forces that thrive in the shadows, to bring the truth to light before it consumes everything."
+    }
+  ]
+}

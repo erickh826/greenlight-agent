@@ -29,4 +29,5 @@ env -u PYTHONPATH -u PYTHONHOME -u CONDA_PREFIX -u CONDA_DEFAULT_ENV \
     --with pandas --with pyarrow --with requests \
     --with google-genai --with pydantic \
     --with pytest --with clickhouse-connect \
+    --with fastapi --with httpx \
     "$@"

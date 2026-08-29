@@ -1,0 +1,443 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greenlight — historical analogue scoring</title>
+<!--
+  One file, no build step: the container serves this statically and there is
+  nothing between the repository and what a judge sees.
+
+  The evidence stream is the point of the page, not decoration. Every figure in
+  a proposal card came from a query printed verbatim above it, with the row
+  count and the latency it really took. A viewer who does not believe the score
+  can read the SQL that produced it without leaving the tab.
+-->
+<style>
+  :root {
+    --bg: #0c0d10;  --panel: #141519;  --line: #24262d;
+    --ink: #e8e9ec;  --dim: #9498a3;  --faint: #676c78;
+    --accent: #e0a458;  --grounded: #6fa8dc;  --wildcard: #c58fd8;
+    --bad: #e06c6c;  --ok: #7fc08a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 var(--sans);
+    padding: clamp(1rem, 3vw, 2.5rem);
+  }
+  .wrap { max-width: 74rem; margin: 0 auto; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 1rem;
+           margin-bottom: 1.5rem; }
+  h1 { font-size: 1.05rem; letter-spacing: .14em; text-transform: uppercase;
+       margin: 0 0 .35rem; font-weight: 600; }
+  .sub { color: var(--dim); font-size: .88rem; margin: 0; }
+  .sub b { color: var(--accent); font-weight: 600; }
+
+  .controls { display: flex; gap: .6rem; flex-wrap: wrap; margin: 1.25rem 0; }
+  input[type=text] {
+    flex: 1 1 22rem; min-width: 0; background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 4px; padding: .6rem .75rem;
+    font: inherit;
+  }
+  input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button {
+    background: var(--accent); color: #17181c; border: 0; border-radius: 4px;
+    padding: .6rem 1.1rem; font: 600 inherit; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--ink);
+                 border: 1px solid var(--line); }
+  button:disabled { opacity: .45; cursor: default; }
+  .status { color: var(--dim); font-size: .85rem; align-self: center;
+            font-family: var(--mono); }
+
+  h2 { font-size: .78rem; letter-spacing: .13em; text-transform: uppercase;
+       color: var(--faint); margin: 2rem 0 .6rem; font-weight: 600; }
+
+  /* --- evidence stream --- */
+  #log {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: .75rem; max-height: 24rem; overflow-y: auto;
+    font-family: var(--mono); font-size: 12.5px;
+  }
+  #log:empty::after { content: "Waiting for the agent to query ClickHouse…";
+                      color: var(--faint); }
+  .ev { padding: .3rem 0; border-bottom: 1px solid #1c1e24; }
+  .ev:last-child { border-bottom: 0; }
+  .who { color: var(--accent); }
+  .sql { white-space: pre-wrap; word-break: break-word; margin: .3rem 0 0;
+         color: #cfd3db; }
+  .rowline { color: var(--dim); }
+  .rowline b { color: var(--ok); font-weight: 600; }
+  .retry { color: var(--accent); font-style: italic; }
+  .fail { color: var(--bad); }
+  .say { color: var(--dim); white-space: pre-wrap; }
+
+  /* --- proposals --- */
+  .cards { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  @media (min-width: 52rem) { .cards { grid-template-columns: 1fr 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-radius: 6px; padding: 1.1rem; display: flex;
+          flex-direction: column; gap: .6rem; }
+  .card.grounded { border-top: 2px solid var(--grounded); }
+  .card.wildcard { border-top: 2px solid var(--wildcard); }
+  .badge { font: 600 .68rem/1 var(--mono); letter-spacing: .12em;
+           text-transform: uppercase; padding: .3rem .5rem; border-radius: 3px;
+           align-self: flex-start; }
+  .grounded .badge { background: #1d2f42; color: var(--grounded); }
+  .wildcard .badge { background: #2e2038; color: var(--wildcard); }
+  .card h3 { margin: 0; font-size: 1.15rem; }
+  .logline { margin: 0; color: var(--dim); }
+  .tags { font-family: var(--mono); font-size: .76rem; color: var(--faint);
+          word-break: break-word; }
+  .metric { display: grid; grid-template-columns: 8.5rem 1fr 3.2rem;
+            gap: .5rem; align-items: center; font-size: .82rem; }
+  .metric span:first-child { color: var(--dim); }
+  .bar { height: 6px; background: #1e2027; border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .metric .val { font-family: var(--mono); text-align: right; }
+  .na { color: var(--faint); }
+  .conf { font-family: var(--mono); font-size: .76rem; color: var(--dim); }
+  details { border-top: 1px solid var(--line); padding-top: .5rem; }
+  summary { cursor: pointer; font-size: .8rem; color: var(--dim); }
+  details pre { white-space: pre-wrap; word-break: break-word;
+                font-family: var(--mono); font-size: 11.5px; color: #b9bec9;
+                background: #101116; padding: .5rem; border-radius: 4px; }
+  .claim { font-size: .8rem; margin: .6rem 0 .2rem; }
+  .caveat { font-size: .78rem; color: var(--faint); margin: .3rem 0; }
+
+  /* --- storyboard --- */
+  .stage { position: relative; aspect-ratio: 16/9; background: #000;
+           border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .stage figure { position: absolute; inset: 0; margin: 0; opacity: 0;
+                  transition: opacity .6s ease; }
+  .stage figure.on { opacity: 1; }
+  .stage img { width: 100%; height: 100%; object-fit: cover;
+               transform-origin: center; }
+  .stage figure.on img { transform: scale(1.02); }
+  .stage figure.on.playing img { animation: kb linear forwards; }
+  @keyframes kb {
+    from { transform: scale(1.02) translate3d(0, 0, 0); }
+    to   { transform: scale(1.16) translate3d(-1.5%, -1.5%, 0); }
+  }
+  .stage figure.on.playing:nth-child(even) img { animation-name: kb2; }
+  @keyframes kb2 {
+    from { transform: scale(1.16) translate3d(1.5%, 1%, 0); }
+    to   { transform: scale(1.02) translate3d(0, 0, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stage figure.on.playing img { animation: none; transform: scale(1.02); }
+  }
+  .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 1rem;
+         font-size: .9rem; color: #f2f3f5;
+         background: linear-gradient(transparent, rgba(0,0,0,.85)); }
+  .progress { display: flex; gap: .3rem; margin-top: .5rem; }
+  .progress div { height: 3px; flex: 1; background: #1e2027; border-radius: 2px; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .playbar { display: flex; gap: .6rem; align-items: center; margin-top: .6rem; }
+  .muted { color: var(--faint); font-size: .78rem; font-family: var(--mono); }
+  .hidden { display: none; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Greenlight</h1>
+    <p class="sub">An agent queries 1,238 films (1990–2014) in ClickHouse,
+      proposes two treatments, and scores each against
+      <b>historical analogues — not a box-office forecast</b>.</p>
+  </header>
+
+  <div class="controls">
+    <input id="prompt" type="text" maxlength="400"
+           placeholder="A brief, or leave blank for the default">
+    <button id="go">Run analysis</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <h2>Evidence stream — every query, verbatim</h2>
+  <div id="log"></div>
+
+  <section id="results" class="hidden">
+    <h2>Two proposals from the same evidence</h2>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section id="board" class="hidden">
+    <h2>Storyboard</h2>
+    <div class="stage" id="stage"></div>
+    <div class="progress" id="progress"></div>
+    <div class="playbar">
+      <button id="play">Play</button>
+      <span class="muted" id="playinfo"></span>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const log = $("log"), cards = $("cards"), statusEl = $("status");
+let runId = null, source = null, approving = false;
+const seen = new Set();
+
+const fmt = v => (v === null || v === undefined) ? "N/A" : Number(v).toFixed(1);
+const esc = s => String(s ?? "").replace(/[&<>]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+function line(html, cls) {
+  const el = document.createElement("div");
+  el.className = "ev" + (cls ? " " + cls : "");
+  el.innerHTML = html;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* --- run ---------------------------------------------------------------- */
+
+$("go").onclick = async () => {
+  $("go").disabled = true;
+  log.textContent = ""; cards.textContent = "";
+  $("results").classList.add("hidden");
+  $("board").classList.add("hidden");
+  seen.clear();
+  statusEl.textContent = "starting…";
+  try {
+    const res = await fetch("/run", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: $("prompt").value }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      line(esc(body.detail || `HTTP ${res.status}`), "fail");
+      statusEl.textContent = "not started";
+      $("go").disabled = false;
+      return;
+    }
+    runId = body.run_id;
+    statusEl.textContent = `run ${runId} · analysing`;
+    listen(runId);
+  } catch (err) {
+    line(esc(err.message), "fail");
+    $("go").disabled = false;
+  }
+};
+
+/* EventSource reconnects on its own, and the server replays history to every
+   new subscriber -- which is right for a reload and wrong for a silent
+   reconnect, because the log would double. Events are keyed and dropped if
+   already rendered. */
+function fresh(e) {
+  const key = `${e.ts}|${e.type}|${(e.message || e.error ||
+    (e.args && e.args.query) || "").slice(0, 60)}`;
+  if (seen.has(key)) return false;
+  seen.add(key);
+  return true;
+}
+
+function listen(id) {
+  if (source) source.close();
+  source = new EventSource(`/events/${id}`);
+  const on = (type, fn) => source.addEventListener(type, ev => {
+    const d = JSON.parse(ev.data);
+    if (fresh(d)) fn(d);
+  });
+
+  on("agent_start", d =>
+    line(`<span class="who">▸ ${esc(d.agent)}</span>` +
+         (d.message ? ` <span class="rowline">${esc(d.message)}</span>` : "")));
+  on("tool_call", d =>
+    line(`<span class="rowline">${esc(d.agent)} → ${esc(d.tool)}</span>` +
+         `<pre class="sql">${esc((d.args && d.args.query) ||
+                                 JSON.stringify(d.args))}</pre>`));
+  on("tool_result", d => {
+    const cols = (d.payload && d.payload.columns) || [];
+    line(`<span class="rowline"><b>${d.rows}</b> rows · ` +
+         `${Math.round(d.elapsed_ms)} ms` +
+         (cols.length ? ` · ${esc(cols.join(", "))}` : "") + `</span>`,
+         "rowline");
+  });
+  on("tool_error", d =>
+    line(`✕ ${esc(String(d.error).slice(0, 300))}`, "fail"));
+  on("agent_retry", d =>
+    line(`↻ retry ${d.retry || ""}: ${esc(d.message)}`, "retry"));
+  on("stage_failed", d => line(`✕ ${esc(d.message)}`, "fail"));
+  on("agent_output", d => {
+    const text = String(d.message || "").trim();
+    // A schema-bound stage returns its whole object as text. Dumped verbatim
+    // it fills the panel and buries the queries this view exists to show, so
+    // structured output is collapsed and prose is shown as written.
+    if (text.startsWith("{") || text.startsWith("```")) {
+      line(`<span class="rowline">${esc(d.agent)} returned structured ` +
+           `output (${text.length} chars)</span>` +
+           `<details><summary>show</summary><pre class="sql">` +
+           `${esc(text)}</pre></details>`);
+    } else {
+      line(`<span class="say">${esc(text)}</span>`);
+    }
+  });
+  on("awaiting_approval", d => {
+    statusEl.textContent = `run ${runId} · awaiting approval`;
+    render(d.proposals || [], d.scores || []);
+  });
+  on("media_ready", d => {
+    buildBoard(d.scenes || []);
+    // The approved card's button said "generating…" for the rest of the
+    // session, which reads as still working long after it finished.
+    document.querySelectorAll(".card button").forEach(b => {
+      if (b.textContent === "generating…") b.textContent = "storyboard below ↓";
+    });
+  });
+  on("done", () => {
+    statusEl.textContent = `run ${runId} · done`;
+    $("go").disabled = false;
+    source.close();
+  });
+  source.addEventListener("error", ev => {
+    if (!ev.data) return;                 // transport blip; it will reconnect
+    const d = JSON.parse(ev.data);
+    if (fresh(d)) line(`✕ ${esc(d.error)}`, "fail");
+    statusEl.textContent = "failed";
+    $("go").disabled = false;
+    source.close();
+  });
+}
+
+/* --- proposals ---------------------------------------------------------- */
+
+function metric(label, value, note) {
+  const pct = value === null || value === undefined ? 0 : value;
+  return `<div class="metric"><span>${label}</span>
+    <span class="bar"><i style="width:${pct}%"></i></span>
+    <span class="val ${value == null ? "na" : ""}">${fmt(value)}</span></div>`
+    + (note ? `<div class="caveat">${esc(note)}</div>` : "");
+}
+
+function render(proposals, scores) {
+  $("results").classList.remove("hidden");
+  cards.textContent = "";
+  proposals.forEach(p => {
+    const s = scores.find(x => x.proposal_title === p.title) || {};
+    const ev = s.evidence || [];
+    const el = document.createElement("div");
+    el.className = `card ${p.variant}`;
+    el.innerHTML = `
+      <span class="badge">${esc(p.variant)}</span>
+      <h3>${esc(p.title)}</h3>
+      <p class="logline">${esc(p.logline)}</p>
+      <div class="tags">${esc(p.motif_tags.join(" · "))}<br>
+        ${esc(p.character_archetypes.join(" · "))}</div>
+      ${metric("commercial", s.commercial_score)}
+      ${metric("attention", s.attention_score)}
+      ${metric("composite", s.composite)}
+      <div class="conf">confidence: ${esc(s.confidence || "—")} ·
+        ${ev.length} evidence items</div>
+      <details><summary>Show the ${ev.length} figures and their SQL</summary>
+        ${ev.map(e => `
+          <p class="claim">${esc(e.claim)}<br>
+            <span class="conf">${esc(e.metric || "")} ·
+              n=${e.sample_count} · ${esc(e.source_view)}</span></p>
+          <pre>${esc(e.sql_query)}</pre>`).join("")}
+      </details>
+      ${(s.caveats || []).length ? `<details><summary>
+        ${s.caveats.length} caveats</summary>
+        ${s.caveats.map(c => `<p class="caveat">${esc(c)}</p>`).join("")}
+        </details>` : ""}`;
+    const b = document.createElement("button");
+    b.textContent = `Approve ${p.variant} → storyboard`;
+    b.onclick = () => approve(p.variant, b);
+    el.appendChild(b);
+    cards.appendChild(el);
+  });
+}
+
+async function approve(variant, button) {
+  if (approving) return;
+  approving = true;
+  document.querySelectorAll(".card button").forEach(b => b.disabled = true);
+  button.textContent = "generating…";
+  statusEl.textContent = `run ${runId} · storyboard`;
+  const res = await fetch(`/approve/${runId}`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ variant }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    line(esc(body.detail || `approve failed: ${res.status}`), "fail");
+    approving = false;
+    document.querySelectorAll(".card button").forEach(b => b.disabled = false);
+    button.textContent = `Approve ${variant} → storyboard`;
+  }
+}
+
+/* --- storyboard --------------------------------------------------------- */
+
+let scenes = [], current = -1, timer = null;
+const audio = new Audio();
+
+function buildBoard(list) {
+  scenes = list.slice().sort((a, b) => a.scene_index - b.scene_index);
+  if (!scenes.length) return;
+  $("board").classList.remove("hidden");
+  $("stage").innerHTML = scenes.map(s => `
+    <figure><img src="${esc(s.image_url)}" alt="${esc(s.description)}"
+       loading="lazy"><figcaption class="cap">${esc(s.description)}</figcaption>
+    </figure>`).join("");
+  $("progress").innerHTML = scenes.map(() => "<div><i></i></div>").join("");
+  // Show the opening frame straight away. Waiting for a click leaves a black
+  // rectangle where the storyboard is, which reads as a failed image rather
+  // than as playback that has not started.
+  $("stage").querySelector("figure").classList.add("on");
+  const noAudio = scenes.filter(s => !s.audio_url).length;
+  $("playinfo").textContent =
+    `${scenes.length} scenes · ` +
+    scenes.map(s => `${s.duration_sec.toFixed(1)}s`).join(" · ") +
+    (noAudio ? ` · ${noAudio} without audio` : "");
+  $("board").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* Playback is a click, not autoplay: browsers block audio that starts without
+   a gesture, and a silent storyboard reads as broken rather than as blocked. */
+$("play").onclick = () => show(0);
+
+function show(i) {
+  clearTimeout(timer);
+  audio.pause();
+  const figures = $("stage").querySelectorAll("figure");
+  figures.forEach((f, n) => {
+    f.classList.toggle("on", n === i);
+    f.classList.toggle("playing", n === i);
+  });
+  const bars = $("progress").querySelectorAll("i");
+  bars.forEach((b, n) => {
+    b.style.transition = "none";
+    b.style.width = n < i ? "100%" : "0";
+  });
+  if (i < 0 || i >= scenes.length) {
+    current = -1;
+    const last = figures[figures.length - 1];
+    if (last) { last.classList.add("on"); last.classList.remove("playing"); }
+    $("play").textContent = "Play again";
+    return;
+  }
+  current = i;
+  $("play").textContent = "Restart";
+  const scene = scenes[i];
+  const img = figures[i].querySelector("img");
+  img.style.animationDuration = `${scene.duration_sec}s`;
+
+  requestAnimationFrame(() => {
+    bars[i].style.transition = `width ${scene.duration_sec}s linear`;
+    bars[i].style.width = "100%";
+  });
+
+  if (scene.audio_url) {
+    audio.src = scene.audio_url;
+    audio.onended = () => show(i + 1);
+    audio.play().catch(() => {           // audio blocked: keep the timing
+      timer = setTimeout(() => show(i + 1), scene.duration_sec * 1000);
+    });
+  } else {
+    timer = setTimeout(() => show(i + 1), scene.duration_sec * 1000);
+  }
+}
+</script>

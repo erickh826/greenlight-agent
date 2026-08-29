@@ -251,6 +251,51 @@ class GreenlightRunResult(BaseModel):
         return self.finished_at - self.started_at
 
 
+class ScenePlan(BaseModel):
+    """One storyboard beat, before any pixel or sample exists.
+
+    Three fields rather than one, because they are read by three different
+    things and merging them makes all three worse: `description` is what a
+    viewer reads beside the frame, `image_prompt` is what Imagen receives, and
+    `narration` is what Cloud TTS speaks. A single blob would put camera
+    directions into the narration and prose into the image prompt.
+
+    Splitting them also puts the expensive calls behind a checkable artefact.
+    A storyboard plan can be validated against the approved proposal for free;
+    an image cannot.
+    """
+
+    scene_index: int = Field(ge=0, description="0-based, in playback order")
+    description: str = Field(
+        max_length=300,
+        description="What happens in this beat, for the viewer to read")
+    image_prompt: str = Field(
+        max_length=600,
+        description="Visual content only -- subject, setting, light, framing. "
+                    "No title cards, captions, letters or logos.")
+    narration: str = Field(
+        max_length=320,
+        description="What the voice says over this beat. One or two sentences.")
+
+
+class StoryboardPlan(BaseModel):
+    """The full plan for one approved proposal.
+
+    Carries the title and variant so the plan can be checked against what was
+    actually approved. Media generation is the one irreversible, billable step
+    in this pipeline, and the thing worth guarding against is not a bad image --
+    it is three good images of the wrong film.
+    """
+
+    proposal_title: str
+    variant: Literal["grounded", "wildcard"]
+    style: str = Field(
+        max_length=300,
+        description="One visual register shared by every scene, so the three "
+                    "frames read as one pitch rather than three films.")
+    scenes: list[ScenePlan]
+
+
 class SceneAsset(BaseModel):
     scene_index: int = Field(ge=0)
     description: str
@@ -265,5 +310,5 @@ __all__ = [
     "BudgetBand", "AnalogueScoringRequest", "AnalogueEvidence",
     "AnalogueEvidenceDraft", "AnalogueEvidenceBundle",
     "VariantOutcome", "GreenlightRunResult",
-    "SceneAsset",
+    "ScenePlan", "StoryboardPlan", "SceneAsset",
 ]

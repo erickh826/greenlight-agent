@@ -69,7 +69,7 @@ Phase 2（加分，9/7 凍結後或 M3 尾聲有空）
    │  GET /events/{id}  (SSE)
    │  POST /approve/{id}
    ▼
-┌─ Cloud Run (min=1, max=1, cpu-always-on, timeout=300) ─────────────┐
+┌─ Cloud Run (min=1, max=1, cpu-always-on, timeout=900) ─────────────┐
 │  FastAPI + ADK Root Agent                                          │
 │    ├─ RunStore (in-memory state machine)                           │
 │    ├─ InProcessEventBus (SSE fan-out)                              │
@@ -86,25 +86,28 @@ Phase 2（加分，9/7 凍結後或 M3 尾聲有空）
 --min-instances=1
 --max-instances=1
 --no-cpu-throttling
---timeout=300
---concurrency=10   # 配合 Semaphore，同時只允許 1 active /run
+--timeout=900
+--concurrency=10   # 配合 Semaphore，同時只允許 1 active analysis
 ```
 
 ### 必做檔案（Phase 1 DoD）
 
 | 檔案 | 內容 |
 |---|---|
-| `app/main.py` | FastAPI：`POST /run`、`GET /events/{id}`、`POST /approve/{id}`、`GET /health` |
+| `app/main.py` | FastAPI：`POST /run`、`GET /events/{id}`、`POST /approve/{id}`、`GET /health`、`GET /ready` |
 | `web/index.html` | SSE 證據流 + 雙方案對比 + approve + Ken Burns 播放器 |
 | `app/media.py` | Imagen + TTS + GCS upload |
 | `Dockerfile` | 雙 venv MCP 隔離；非 root；預裝 mcp-clickhouse |
 | Secret Manager | `CLICKHOUSE_HOST`、`CLICKHOUSE_PASSWORD` |
 
-### `/health` 必須檢查
+### `/health` / `/ready` 必須分開
 
-1. FastAPI 活著  
-2. MCP `SELECT 1` 成功（走 `warm_up()` 同路徑）  
-3. （可選）GCS bucket 可寫  
+`/health` 是便宜 liveness only：只確認 FastAPI 活著，不碰 MCP / ClickHouse /
+GCS。Cloud Run startup/liveness probe 只能打這個端點。
+
+`/ready` 才做 MCP warm-up：`SELECT 1` ＋ MV 輕量查詢，走 `warm_up()` 同路徑並
+回報耗時。demo 前人工打 `/ready`；不要放進 startup probe，ClickHouse Cloud
+冷路徑實測可到 25 秒以上。
 
 ### SSE 標頭（不可省略）
 
@@ -117,7 +120,8 @@ X-Accel-Buffering: no
 
 ### 公開 demo 保護（M3 P0，比 Sidecar 優先）
 
-- `asyncio.Semaphore(1)` 或 `RunStore` 檢查：同時只有 1 個 active run  
+- `ANALYSIS_SLOT`：同時只有 1 個 active analysis；`awaiting_approval` 不佔名額
+- `MEDIA_SLOT`：核准後的 storyboard / media 另排隊
 - `/run` rate limit（每 IP 每分鐘 1 次）  
 - Storyboard `create_task` 例外必須 `event_bus.publish({"type": "error", ...})`
 
@@ -201,43 +205,27 @@ MCP_AUTH_TOKEN=<same secret>
 
 ## 下一步執行鏈（從當前 milestone 接上）
 
-> 當前位置：M2 Phase B grounded ✅；PredictAgent ✅；wildcard 可砍，下一個阻斷點是 Root Agent 編排。
-> **部署工作從 M3 開始，但架構決策現已鎖定，M2 期間勿提前做 Sidecar。**
+> 當前位置：M3 已完成並部署。公開 URL 已跑過真實瀏覽器無痕驗收：
+> run → SSE SQL evidence → proposal compare → approve → media_ready → done。
+> 下一個阻斷點是 M4 提交：錄影、README 最終核對、全歷史掃密、Devpost。
 
-### 立即（M2 剩餘，8/29–9/2）
-
-| 順序 | 任務 | Branch 建議 | 阻斷？ |
-|---|---|---|---|
-| 1 | RecombineAgent wildcard（`temperature=1.5`） | `feature/m2-recombine-phase-b-wildcard` | 否（可砍） |
-| 2 | `SequentialAgent` 端到端 CLI | `feature/m2-root-agent` | **是** |
-
-每完成一項：`pytest` + 對應 `scripts/run_m2_*.py` trace log。
-
-### M3（9/3–9/7）— Phase 1 部署主戰場
-
-| 日期 | 任務 | 與部署的關係 |
-|---|---|---|
-| 9/3 | `app/media.py` + StoryboardAgent | `create_task` 非同步管線 |
-| 9/4 | Cloud TTS + GCS | 同上；失敗 → visual-only fallback |
-| 9/5–9/6 | `web/index.html` + SSE 證據流 | 接 `InProcessEventBus` |
-| **9/7** | **Dockerfile + Cloud Run deploy + 無痕測試** | **Phase 1 DoD 截止** |
-
-**9/7 當天執行順序：**
+### M4 前最後部署核對
 
 ```bash
 # 1. 本機最後驗收
 python3 -m pytest tests -q
-./scripts/run_agent.sh scripts/run_m2_recombine_phase_a.py   # 或最新 e2e script
+python3 -m compileall app scripts etl tests
 
-# 2. 建置 + 部署（參考 suggestion/CLOUD_RUN_DEPLOYMENT_PLAN.md §4–5）
+# 2. 若有代碼變更才重建 + 部署
 gcloud builds submit --tag ${IMAGE_TAG} .
 gcloud run deploy greenlight-agent \
   --min-instances=1 --max-instances=1 \
-  --no-cpu-throttling --timeout=300 \
+  --no-cpu-throttling --timeout=900 \
   ...
 
 # 3. 暖機 + 無痕視窗完整 demo
 curl ${SERVICE_URL}/health
+curl ${SERVICE_URL}/ready
 # 瀏覽器：run → SSE → approve → storyboard
 ```
 

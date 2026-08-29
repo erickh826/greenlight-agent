@@ -41,13 +41,15 @@ from app.agents.predict import (
 from app.agents.recombine import (
     build_recombine_phase_a_agent, build_recombine_phase_b_grounded_agent,
     build_recombine_phase_b_wildcard_agent)
+from app.agents.storyboard import build_storyboard_agent, storyboard_prompt
 from app.analogue_scoring import (
     comparison_caveats, insufficient_evidence, resolve_bundle, score_bundle,
     validate_analogue_evidence)
 from app.config import PROPOSAL_VARIANTS, SQL_RETRY_LIMIT
 from app.contracts import (
     AnalogueEvidenceBundle, AnalogueScoringRequest, GreenlightRunResult,
-    PredictionScore, TreatmentProposal, VariantOutcome)
+    PredictionScore, StoryboardPlan, TreatmentProposal, VariantOutcome)
+from app.media import validate_storyboard_plan
 from app.events import Event, make_event
 from app.proposal_validation import (
     extract_json_object, parse_treatment_proposal, validate_grounded_proposal,
@@ -188,20 +190,23 @@ async def drive(agent, prompt: str, emit: Emit, *, app_name: str,
             if run.over_retry_limit():
                 run.retries_exhausted = True
                 emit(make_event(
-                    "error", agent=agent.name,
+                    "stage_failed", agent=agent.name,
+                    retry=run.consecutive_failures,
                     message=f"{run.consecutive_failures} consecutive "
                             f"failures; stopping at the limit of "
                             f"{run.attempts_allowed} attempts"))
                 break
             if run.calls > max_turns:
-                emit(make_event("error", agent=agent.name,
+                emit(make_event("stage_failed", agent=agent.name,
                                 message=f"more than {max_turns} tool calls"))
                 break
     except Exception as exc:
         message = f"{type(exc).__name__}: {exc}"
         run.model_errors.append(message)
+        # Not terminal: drive() runs one stage and has no idea whether the run
+        # can continue without it. Only run_greenlight decides that.
         emit(make_event(
-            "error", agent=agent.name,
+            "stage_failed", agent=agent.name,
             message="model execution failed after "
                     f"{run.calls} tool calls and {run.responses} responses: "
                     + message[:1200]))
@@ -311,71 +316,116 @@ return the whole proposal again:
 Everything else about the task is unchanged."""
 
 
-async def recombine_phase_b(model: str, variant: str, transcript: str,
-                            emit: Emit) -> tuple[TreatmentProposal | None,
-                                                 list[str], QueryRun]:
-    """Transcript in, one schema-bound proposal out, tools off.
+async def converge_with_retry(
+    *,
+    builder: Callable[[], object],
+    prompt: str,
+    emit: Emit,
+    app_name: str,
+    label: str,
+    parse: Callable[[str], object],
+    validate: Callable[[object], list[str]],
+) -> tuple[object | None, list[str], QueryRun]:
+    """Run a no-tools schema stage, retrying on a rejected answer.
 
-    Retries on a rejected proposal, on the same budget as a failed query. The
-    reason is that response_schema is not the guarantee it looks like: Gemini
-    enforces the shape and the enums, but not a string maxLength, so a logline
-    that runs to 214 characters comes back as valid JSON that pydantic then
-    refuses. Without a retry that ends the variant outright -- which is how a
-    run lost its grounded proposal to a logline fourteen characters too long
-    while the wildcard scored fine beside it.
+    The budget is SQL_RETRY_LIMIT + 1, the same as a failing query, because the
+    failure is the same kind: an attempt that did not work and a stated reason
+    it did not. What makes the retry worth having is that response_schema is
+    not the guarantee it looks like -- Gemini enforces the shape and the enums
+    but not a string maxLength, so a logline running to 214 characters comes
+    back as valid JSON that pydantic then refuses. Without a retry that ended
+    the variant outright, which is how a run lost its grounded proposal to a
+    logline fourteen characters too long while the wildcard scored fine beside
+    it.
 
     The correction carries the validation errors verbatim. A model told "the
     logline must be at most 200 characters" after writing 214 fixes it; a model
     told "try again" writes something else that is also too long.
-    """
-    builder = (build_recombine_phase_b_grounded_agent if variant == "grounded"
-               else build_recombine_phase_b_wildcard_agent)
-    validator = (validate_grounded_proposal if variant == "grounded"
-                 else validate_wildcard_proposal)
-    base = PHASE_B_PROMPT.format(variant=variant, transcript=transcript)
 
+    Each attempt gets a fresh session. The rejected answer is not context the
+    next attempt should build on -- only the stated reason is.
+    """
     run = QueryRun()
     errors: list[str] = []
-    proposal: TreatmentProposal | None = None
+    parsed: object | None = None
 
     for attempt in range(SQL_RETRY_LIMIT + 1):
-        prompt = base if attempt == 0 else (
-            base + "\n\n" + CORRECTION_PROMPT.format(
+        full = prompt if attempt == 0 else (
+            prompt + "\n\n" + CORRECTION_PROMPT.format(
                 errors="\n".join(f"- {e}" for e in errors)))
-        # A fresh session each attempt: the rejected answer is not context the
-        # next one should build on, only the stated reason is.
-        run = await drive(builder(model), prompt, emit,
-                          app_name=f"recombine_b_{variant}_{attempt}")
+        run = await drive(builder(), full, emit,
+                          app_name=f"{app_name}_{attempt}")
 
         errors = []
         if run.calls:
-            errors.append(f"{variant} phase B made {run.calls} tool calls; "
-                          "this stage must not query")
+            errors.append(f"{label} made {run.calls} tool calls; this stage "
+                          "must not query")
 
         raw = "\n".join(run.notes)
-        proposal = None
+        parsed = None
         if not raw.strip():
-            errors.append(f"{variant} phase B returned no output")
+            errors.append(f"{label} returned no output")
         else:
             try:
-                proposal = parse_treatment_proposal(raw)
+                parsed = parse(raw)
             except Exception as exc:
-                errors.append(
-                    f"{variant} phase B output did not parse: {exc}")
+                errors.append(f"{label} output did not parse: {exc}")
 
-        if proposal is not None:
-            errors += validator(proposal, transcript)
+        if parsed is not None:
+            errors += validate(parsed)
 
         if not errors:
-            return proposal, [], run
+            return parsed, [], run
 
-        emit(make_event("error", agent=f"recombine_b_{variant}",
-                        retry=attempt + 1,
+        emit(make_event("agent_retry", agent=app_name, retry=attempt + 1,
                         message=f"attempt {attempt + 1} of "
                                 f"{SQL_RETRY_LIMIT + 1} rejected: "
                                 + "; ".join(errors)))
 
-    return proposal, errors, run
+    return parsed, errors, run
+
+
+async def recombine_phase_b(model: str, variant: str, transcript: str,
+                            emit: Emit) -> tuple[TreatmentProposal | None,
+                                                 list[str], QueryRun]:
+    """Transcript in, one schema-bound proposal out, tools off."""
+    builder = (build_recombine_phase_b_grounded_agent if variant == "grounded"
+               else build_recombine_phase_b_wildcard_agent)
+    validator = (validate_grounded_proposal if variant == "grounded"
+                 else validate_wildcard_proposal)
+
+    return await converge_with_retry(
+        builder=lambda: builder(model),
+        prompt=PHASE_B_PROMPT.format(variant=variant, transcript=transcript),
+        emit=emit,
+        app_name=f"recombine_b_{variant}",
+        label=f"{variant} phase B",
+        parse=parse_treatment_proposal,
+        validate=lambda proposal: validator(proposal, transcript),
+    )
+
+
+async def plan_storyboard(model: str, proposal: TreatmentProposal,
+                          emit: Emit) -> tuple[StoryboardPlan | None,
+                                               list[str], QueryRun]:
+    """Approved proposal in, one validated StoryboardPlan out, tools off.
+
+    Runs before any image or audio exists, and that ordering is the whole point:
+    Imagen and Cloud TTS are the only irreversible spend in this pipeline, and
+    a plan can be checked against the approved proposal for nothing. What the
+    check is for is not an ugly frame -- it is three good frames of the wrong
+    film.
+    """
+    return await converge_with_retry(
+        builder=lambda: build_storyboard_agent(model),
+        prompt=storyboard_prompt(proposal),
+        emit=emit,
+        app_name="storyboard",
+        label="storyboard",
+        parse=lambda raw: StoryboardPlan.model_validate_json(
+            extract_json_object(raw)),
+        validate=lambda plan: validate_storyboard_plan(plan, proposal),
+    )
 
 
 class ScoringOutcome:
@@ -507,7 +557,7 @@ async def run_greenlight(
             outcomes.append(VariantOutcome(variant=variant, proposal=proposal,
                                            score=None,
                                            validation_errors=errors))
-            emit(make_event("error", agent=f"recombine_b_{variant}",
+            emit(make_event("stage_failed", agent=f"recombine_b_{variant}",
                             message="; ".join(errors)))
             continue
 
@@ -529,7 +579,13 @@ async def run_greenlight(
         guardrail_blocks=len(phase_a.blocked)
         + sum(len(s.query_run.blocked) for s in scorings),
     )
-    emit(make_event("done", agent="root",
+    # awaiting_approval, not done: analysis finishing is not the run finishing.
+    # The next thing that happens is a person choosing a variant, and only the
+    # caller knows whether there is one -- the CLI publishes `done` right after
+    # this, the API keeps the stream open for /approve. Emitting a terminal
+    # event here would close every browser's SSE connection at exactly the
+    # moment the proposals appear on screen.
+    emit(make_event("awaiting_approval", agent="root",
                     proposals=[o.proposal.model_dump(mode="json")
                                for o in outcomes if o.proposal],
                     scores=[o.score.model_dump(mode="json")
