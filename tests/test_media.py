@@ -295,7 +295,7 @@ def test_render_storyboard_media_returns_three_scene_assets():
     assert [a.description for a in assets] == \
         [s.description for s in p.scenes]
     assert all(a.duration_sec >= 4.25 for a in assets)
-    assert all(a.image_url.endswith(f"scene_{i}/image.jpg")
+    assert all(a.image_url.endswith(f"scene_{i}/image.png")
                for i, a in enumerate(assets))
     assert all(a.audio_url.endswith(f"scene_{i}/narration.wav")
                for i, a in enumerate(assets))
@@ -303,11 +303,11 @@ def test_render_storyboard_media_returns_three_scene_assets():
     assert client.prompts == [compose_image_prompt(p, s) for s in p.scenes]
     assert client.narrations == [s.narration for s in p.scenes]
     assert [u[:2] for u in client.uploads] == [
-        ("runs/run-1/scene_0/image.jpg", IMAGE_MIME_TYPE),
+        ("runs/run-1/scene_0/image.png", IMAGE_MIME_TYPE),
         ("runs/run-1/scene_0/narration.wav", AUDIO_MIME_TYPE),
-        ("runs/run-1/scene_1/image.jpg", IMAGE_MIME_TYPE),
+        ("runs/run-1/scene_1/image.png", IMAGE_MIME_TYPE),
         ("runs/run-1/scene_1/narration.wav", AUDIO_MIME_TYPE),
-        ("runs/run-1/scene_2/image.jpg", IMAGE_MIME_TYPE),
+        ("runs/run-1/scene_2/image.png", IMAGE_MIME_TYPE),
         ("runs/run-1/scene_2/narration.wav", AUDIO_MIME_TYPE),
     ]
     assert progress[0] == "scene 1/3: image"
