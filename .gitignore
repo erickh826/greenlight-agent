@@ -30,6 +30,7 @@ data/
 !docs/m2-recombine-phase-b-grounded-trace.log
 !docs/m2-predict-agent-trace.log
 !docs/m2-greenlight-trace.log
+!docs/m3-storyboard-trace.log
 .idea/
 .vscode/
 

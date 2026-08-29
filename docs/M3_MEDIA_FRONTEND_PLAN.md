@@ -50,10 +50,11 @@ Implementation:
      returns `{run_id}` immediately.
    - `GET /events/{run_id}` streams SSE with no-buffering headers.
    - `POST /approve/{run_id}` accepts `{"variant": "grounded" | "wildcard"}`.
-   - `GET /health` checks process liveness and MCP warm-up path.
+   - `GET /health` checks process liveness only.
+   - `GET /ready` runs MCP warm-up through the same path agents use.
 2. Add public demo protection:
-   - one active `/run` at a time with `asyncio.Semaphore(1)` or equivalent
-     `RunStore` admission;
+   - one active analysis at a time with `asyncio.Semaphore(1)` or equivalent
+     `RunStore` admission; `awaiting_approval` runs do not hold this slot;
    - basic per-IP rate limit for `/run`;
    - bounded prompt length and a fixed default prompt.
 3. Adjust the analysis handoff for API use:
@@ -165,11 +166,14 @@ Implementation:
 - Preinstall `mcp-clickhouse`; do not download it during cold start.
 - Non-root runtime user.
 - Secret Manager injects ClickHouse credentials.
-- `GET /health` performs MCP `SELECT 1` warm-up through the same path agents use.
+- `GET /health` is cheap liveness only.
+- `GET /ready` performs MCP warm-up through the same path agents use; do not
+  put this behind a startup probe.
 
 DoD:
 
-- Local container starts and serves `/health`.
+- Local container starts and serves `/health`; `/ready` reports warm-up status
+  and elapsed time.
 - Cloud Run public URL passes incognito test:
   run -> SSE SQL trace -> proposals -> approve -> storyboard.
 - Repo still has no secrets and no non-Google AI dependency.

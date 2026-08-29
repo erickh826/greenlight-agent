@@ -16,6 +16,7 @@ import asyncio
 import sys
 import threading
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -205,6 +206,87 @@ def test_the_approval_gate_does_not_hold_the_slot(monkeypatch):
         wait_for(client, second, "awaiting_approval")
         assert client.get(f"/runs/{first}").json()["state"] == \
             "awaiting_approval"
+
+
+def test_real_analysis_publishes_gate_after_state_transition(monkeypatch):
+    """The SSE gate must not race ahead of the RunStore state.
+
+    A fast client can receive `awaiting_approval` and immediately call
+    /approve. The event therefore has to be published only after the run is
+    actually approvable.
+    """
+    from app.events import InProcessEventBus
+
+    class Dumpable:
+        def __init__(self, value):
+            self.value = value
+
+        def model_dump(self, mode="json"):
+            return self.value
+
+    class FakeToolset:
+        async def close(self):
+            pass
+
+    async def fake_warm_up(toolset):
+        return []
+
+    async def fake_run_greenlight(model, toolset, emit, *, prompt, run_id):
+        emit(make_event("tool_call", agent="predict", tool="run_query",
+                        args={"query": "SELECT 1"}))
+        emit(make_event("awaiting_approval", agent="root",
+                        proposals=[{"stale": True}],
+                        scores=[{"stale": True}]))
+        outcomes = [
+            types.SimpleNamespace(proposal=Dumpable(PROPOSALS[0]),
+                                  score=Dumpable(SCORES[0])),
+            types.SimpleNamespace(proposal=Dumpable(PROPOSALS[1]),
+                                  score=Dumpable(SCORES[1])),
+        ]
+        return types.SimpleNamespace(outcomes=outcomes), None, None
+
+    fake_mcp = types.ModuleType("app.mcp")
+    fake_mcp.build_clickhouse_tools = FakeToolset
+    fake_mcp.warm_up = fake_warm_up
+    fake_pipeline = types.ModuleType("app.pipeline")
+    fake_pipeline.DEFAULT_PROMPT = "default prompt"
+    fake_pipeline.run_greenlight = fake_run_greenlight
+    monkeypatch.setitem(sys.modules, "app.mcp", fake_mcp)
+    monkeypatch.setitem(sys.modules, "app.pipeline", fake_pipeline)
+
+    class RecordingBus(InProcessEventBus):
+        def __init__(self):
+            super().__init__()
+            self.published = []
+
+        def publish(self, run_id, event):
+            run = main.store.get(run_id)
+            self.published.append((event["type"], run.state.value))
+            super().publish(run_id, event)
+
+    recording_bus = RecordingBus()
+    monkeypatch.setattr(main, "bus", recording_bus)
+
+    class FakeTask:
+        def cancel(self):
+            pass
+
+    def no_background_task(coro):
+        coro.close()
+        return FakeTask()
+
+    monkeypatch.setattr(main.asyncio, "create_task", no_background_task)
+
+    run = main.store.create(prompt="")
+    asyncio.run(main._analyse(run.run_id, ""))
+
+    stored = main.store.require(run.run_id)
+    assert stored.state is RunState.AWAITING_APPROVAL
+    assert stored.proposals == PROPOSALS
+    assert stored.scores == SCORES
+    assert ("awaiting_approval", "awaiting_approval") in \
+        recording_bus.published
+    assert ("awaiting_approval", "running") not in recording_bus.published
 
 
 def test_rate_limit_is_per_address(monkeypatch):

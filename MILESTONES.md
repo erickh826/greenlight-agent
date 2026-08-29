@@ -424,9 +424,9 @@ unit tests 不打 Gemini / ClickHouse / Imagen → **PASS**。
 
 驗收（2026-08-29，提前完成）：
 
-- `./scripts/run_etl.sh -m pytest tests -q` → **108 passed**（新增 20 個：
-  `tests/test_events.py` 8、`tests/test_api.py` 12），全部用 fake analysis，
-  不打任何付費 API，0.28s 跑完
+- `./scripts/run_etl.sh -m pytest tests -q` → **109 passed**（新增 21 個：
+  `tests/test_events.py` 8、`tests/test_api.py` 13），全部用 fake analysis，
+  不打任何付費 API，0.31s 跑完
 - `python3 -m compileall app scripts etl tests` → PASS
 - 真實伺服器 smoke：`PORT=8099 ./scripts/serve.sh` → `/health`、`/`、`/ready` 皆正常
 - **真實端到端（走 API，不是 CLI）**：`POST /run` → SSE 41 個事件依序抵達 →
@@ -462,16 +462,62 @@ unit tests 不打 Gemini / ClickHouse / Imagen → **PASS**。
 `close()` 原本直接丟掉 history，導致 run 結束後重新整理頁面看不到 trace，
 現在保留 history 並在 sweep 時才 `discard()`。
 
+**驗收補修**：API `_analyse()` 會暫存 pipeline 發出的 `awaiting_approval`
+事件，等 proposals/scores 寫進 `RunStore` 並切到 `AWAITING_APPROVAL` 後才
+發布 SSE。這避免很快的前端收到 gate 事件後立刻打 `/approve` 時，狀態機仍是
+`running` 而偶發 409。
+
 ### 9/4 五（3.5h）
 
-- [ ] `app/agents/storyboard.py`：approved proposal → exactly 3 scene plans
-- [ ] `app/media.py`：Imagen 生圖，固定風格前綴，輸出 16:9 scene still
+- [x] `app/agents/storyboard.py`：approved proposal → exactly 3 scene plans
+      （M3 Task 1，2026-08-29 完成）
+- [x] `app/media.py` 前半：`StoryboardPlan` 驗證、`HOUSE_STYLE`、prompt 組裝、
+      時長估算——**不花錢就能查的部分**
+- [ ] `app/media.py` 後半：Imagen 生圖，輸出 16:9 scene still
 - [ ] GCS 上傳與 URL 產生
 - [ ] Cloud TTS 旁白（Chirp 3 HD）
 - [ ] `SceneAsset` 契約填充完成；媒體錯誤必須 publish `error` event
 
 **DoD**：3 張風格一致的 16:9 圖片可由 URL 存取；音訊可播放或明確走
 Google-only fallback。
+
+#### Task 1 驗收（2026-08-29，提前完成）
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **130 passed**（`tests/test_media.py` 新增 21）
+- `./scripts/run_agent.sh scripts/run_m3_storyboard.py` → **9/9 PASS**，
+  輸出 `docs/m3-storyboard-plan.json` 與 trace
+
+**為什麼 plan 是獨立產物**：媒體是整條 pipeline 唯一不可逆的花費。核准閘門之前
+的一切都能用幾個 ClickHouse 查詢重跑，三張 Imagen ＋ 三段 TTS 不行。所以先產出
+一個**不花錢就能驗**的 `StoryboardPlan`，再拿它去生媒體。要防的不是醜圖，
+是**三張很好但屬於另一部片的圖**——所以驗證項目是 title / variant / 詞彙沒有漂移，
+而不是美學。
+
+`converge_with_retry()` 從 `recombine_phase_b` 抽出來共用：兩者都是「無 tools ＋
+output_schema ＋ 被拒就帶著錯誤原文重試」，重試預算和 SQL 一樣是
+`SQL_RETRY_LIMIT + 1`。
+
+**第一次真實跑就抓到三個問題**（DoD 擋下來的，不是事後發現的）：
+
+1. **negation-blind 的字幕偵測誤判自己。** `HOUSE_STYLE` 本身寫著
+   「No text, no captions, no logos, no watermarks」，而驗收腳本拿**組合後**的
+   prompt 去查，於是三個場景全被標成「要求畫面內文字」。兩處都錯：腳本應該查
+   模型自己寫的 `image_prompt`，而 `lettering_requests()` 應該忽略被否定的提及。
+   否定只涵蓋自己的子句——否則 `no watermark, but a title card reading THE END`
+   會因為那個 `no` 還在回看窗內而整句被當成否定。
+2. **風格被講了三次。** 模型把 `style` 幾乎逐字設成 house style，
+   而場景 prompt 又各自重述一次景深/顆粒/色調，組合後同一組底片詞彙在主體出現
+   之前重複三輪。加了 `restates_house_style()` 檢查（內容詞重疊 ≥ 70% 即判定），
+   指令也改成「style 要寫這部片自己的樣子」。重跑後模型給的是
+   「Gritty urban realism, rain-slicked streets, institutional interiors...」。
+3. **prompt 順序放反了。** 原本是 house style 開頭，等於在畫面主體前面塞四個
+   子句的底片術語。Imagen 讀自然語言、開頭權重最高，改成
+   **moment → 這部片的 style → house style**。
+
+**剩下要記的**：`/approve` 現在是同步走完 `STORYBOARD → DONE` 並 `bus.close()`。
+Task 2 媒體進來後這段必須改成背景 task ＋ `MEDIA_SLOT`，`done` 與 `close()` 移到
+媒體完成之後，否則串流會在圖片生出來之前就關掉。另外 `media_ready` 要沿用
+`awaiting_approval` 那個修法：等 `run.scenes` 寫進 `RunStore` 之後才發布。
 
 ### 9/5–9/6 週末（2h）
 

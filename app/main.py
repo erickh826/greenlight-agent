@@ -44,7 +44,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.env import load_env
-from app.events import InProcessEventBus, make_event
+from app.events import Event, InProcessEventBus, make_event
 from app.state import RunState, RunStore
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -141,6 +141,17 @@ async def _analyse(run_id: str, prompt: str) -> None:
 
     run = store.require(run_id)
     toolset = None
+    gate_event: Event | None = None
+
+    def emit(event: Event) -> None:
+        """Publish analysis progress, but hold the gate until state is stored."""
+        nonlocal gate_event
+        stamped: Event = {**event, "run_id": run_id}
+        if stamped["type"] == "awaiting_approval":
+            gate_event = stamped
+            return
+        bus.publish(run_id, stamped)
+
     try:
         async with ANALYSIS_SLOT:
             toolset = build_clickhouse_tools()
@@ -148,7 +159,7 @@ async def _analyse(run_id: str, prompt: str) -> None:
             result, _, _ = await run_greenlight(
                 os.environ.get("MODEL_FAST") or "gemini-2.5-flash",
                 toolset,
-                lambda event: bus.publish(run_id, {**event, "run_id": run_id}),
+                emit,
                 prompt=prompt or DEFAULT_PROMPT,
                 run_id=run_id,
             )
@@ -161,6 +172,10 @@ async def _analyse(run_id: str, prompt: str) -> None:
             raise RuntimeError("no variant produced a score")
 
         run.transition(RunState.AWAITING_APPROVAL)
+        if gate_event is None:
+            gate_event = make_event("awaiting_approval", agent="root")
+        bus.publish(run_id, {**gate_event, "run_id": run_id,
+                             "proposals": run.proposals, "scores": run.scores})
         asyncio.create_task(_expire_approval(run_id))
     except Exception as exc:
         run.fail(f"{type(exc).__name__}: {exc}")

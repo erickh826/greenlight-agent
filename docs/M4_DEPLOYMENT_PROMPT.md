@@ -87,24 +87,27 @@ Phase 2（加分，9/7 凍結後或 M3 尾聲有空）
 --max-instances=1
 --no-cpu-throttling
 --timeout=300
---concurrency=10   # 配合 Semaphore，同時只允許 1 active /run
+--concurrency=10   # 配合 Semaphore，同時只允許 1 active analysis
 ```
 
 ### 必做檔案（Phase 1 DoD）
 
 | 檔案 | 內容 |
 |---|---|
-| `app/main.py` | FastAPI：`POST /run`、`GET /events/{id}`、`POST /approve/{id}`、`GET /health` |
+| `app/main.py` | FastAPI：`POST /run`、`GET /events/{id}`、`POST /approve/{id}`、`GET /health`、`GET /ready` |
 | `web/index.html` | SSE 證據流 + 雙方案對比 + approve + Ken Burns 播放器 |
 | `app/media.py` | Imagen + TTS + GCS upload |
 | `Dockerfile` | 雙 venv MCP 隔離；非 root；預裝 mcp-clickhouse |
 | Secret Manager | `CLICKHOUSE_HOST`、`CLICKHOUSE_PASSWORD` |
 
-### `/health` 必須檢查
+### `/health` / `/ready` 必須分開
 
-1. FastAPI 活著  
-2. MCP `SELECT 1` 成功（走 `warm_up()` 同路徑）  
-3. （可選）GCS bucket 可寫  
+`/health` 是便宜 liveness only：只確認 FastAPI 活著，不碰 MCP / ClickHouse /
+GCS。Cloud Run startup/liveness probe 只能打這個端點。
+
+`/ready` 才做 MCP warm-up：`SELECT 1` ＋ MV 輕量查詢，走 `warm_up()` 同路徑並
+回報耗時。demo 前人工打 `/ready`；不要放進 startup probe，ClickHouse Cloud
+冷路徑實測可到 25 秒以上。
 
 ### SSE 標頭（不可省略）
 
@@ -117,7 +120,8 @@ X-Accel-Buffering: no
 
 ### 公開 demo 保護（M3 P0，比 Sidecar 優先）
 
-- `asyncio.Semaphore(1)` 或 `RunStore` 檢查：同時只有 1 個 active run  
+- `ANALYSIS_SLOT`：同時只有 1 個 active analysis；`awaiting_approval` 不佔名額
+- `MEDIA_SLOT`：核准後的 storyboard / media 另排隊
 - `/run` rate limit（每 IP 每分鐘 1 次）  
 - Storyboard `create_task` 例外必須 `event_bus.publish({"type": "error", ...})`
 
@@ -241,6 +245,7 @@ gcloud run deploy greenlight-agent \
 
 # 3. 暖機 + 無痕視窗完整 demo
 curl ${SERVICE_URL}/health
+curl ${SERVICE_URL}/ready
 # 瀏覽器：run → SSE → approve → storyboard
 ```
 
