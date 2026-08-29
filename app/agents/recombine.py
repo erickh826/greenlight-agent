@@ -16,7 +16,8 @@ from __future__ import annotations
 from google.adk.agents import Agent
 from google.genai import types
 
-from app.config import MIN_SAMPLE_SIZE, WILDCARD_TEMPERATURE
+from app.config import (
+    MIN_SAMPLE_SIZE, SCHEMA_STAGE_THINKING_BUDGET, WILDCARD_TEMPERATURE)
 from app.contracts import TreatmentProposal
 from app.prompts import analyst_system_instruction
 
@@ -149,7 +150,11 @@ def build_recombine_phase_b_grounded_agent(model: str) -> Agent:
         ),
         tools=[],
         output_schema=TreatmentProposal,
-        generate_content_config=types.GenerateContentConfig(temperature=0.2),
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.2,
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=SCHEMA_STAGE_THINKING_BUDGET),
+        ),
     )
 
 
@@ -171,7 +176,10 @@ def build_recombine_phase_b_wildcard_agent(model: str) -> Agent:
         tools=[],
         output_schema=TreatmentProposal,
         generate_content_config=types.GenerateContentConfig(
-            temperature=WILDCARD_TEMPERATURE),
+            temperature=WILDCARD_TEMPERATURE,
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=SCHEMA_STAGE_THINKING_BUDGET),
+        )
     )
 
 

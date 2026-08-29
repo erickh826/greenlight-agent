@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import threading
 import time
 import wave
 from dataclasses import dataclass
@@ -305,6 +306,13 @@ class GoogleMediaClient:
         self._genai_client = None
         self._tts_client = None
         self._storage_client = None
+        # The SDK clients are built on first use, and first use now happens on
+        # several threads at once: images, narration and uploads all run
+        # through asyncio.to_thread concurrently. Unguarded, two threads each
+        # see None, each construct a client, and the loser's client is
+        # discarded while its request is still in flight --
+        # "Cannot send a request, as the client has been closed."
+        self._lock = threading.Lock()
 
     @classmethod
     def from_env(cls, *, on_retry: Callable[[str], None] | None = None
@@ -325,18 +333,34 @@ class GoogleMediaClient:
             on_retry=on_retry,
         )
 
+    def _genai(self):
+        """The shared genai client, built once however many threads ask."""
+        with self._lock:
+            if self._genai_client is None:
+                from google import genai
+
+                self._genai_client = genai.Client()
+            return self._genai_client
+
+    def _storage(self):
+        with self._lock:
+            if self._storage_client is None:
+                from google.cloud import storage
+
+                self._storage_client = storage.Client(
+                    project=os.environ.get("GOOGLE_CLOUD_PROJECT") or None)
+            return self._storage_client
+
     async def generate_image(self, prompt: str) -> bytes:
         return await asyncio.to_thread(
             _retrying, lambda: self._generate_image_sync(prompt),
             label="image", on_retry=self.on_retry)
 
     def _generate_image_sync(self, prompt: str) -> bytes:
-        from google import genai
         from google.genai import types
 
-        if self._genai_client is None:
-            self._genai_client = genai.Client()
-        response = self._genai_client.models.generate_content(
+        client = self._genai()
+        response = client.models.generate_content(
             model=self.image_model,
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -358,12 +382,10 @@ class GoogleMediaClient:
             label="narration", on_retry=self.on_retry)
 
     def _synthesize_sync(self, text: str) -> SynthesizedAudio:
-        from google import genai
         from google.genai import types
 
-        if self._genai_client is None:
-            self._genai_client = genai.Client()
-        response = self._genai_client.models.generate_content(
+        client = self._genai()
+        response = client.models.generate_content(
             model=self.tts_model,
             contents=text,
             config=types.GenerateContentConfig(
@@ -390,12 +412,7 @@ class GoogleMediaClient:
 
     def _upload_sync(self, object_name: str, data: bytes,
                      content_type: str) -> str:
-        if self._storage_client is None:
-            from google.cloud import storage
-
-            project = os.environ.get("GOOGLE_CLOUD_PROJECT") or None
-            self._storage_client = storage.Client(project=project)
-        blob = self._storage_client.bucket(self.bucket_name).blob(object_name)
+        blob = self._storage().bucket(self.bucket_name).blob(object_name)
         blob.cache_control = "public, max-age=21600"
         blob.upload_from_string(data, content_type=content_type)
 
@@ -465,30 +482,63 @@ async def render_storyboard_media(
 ) -> list[SceneAsset]:
     """Generate and upload the three approved scene assets.
 
-    Sequential on purpose: this is the expensive section of the demo, and doing
-    one image plus one narration at a time is predictable under quota.
+    Serial within a quota pool, parallel across them. The earlier version was
+    serial throughout, on the reasoning that one call at a time is predictable
+    under quota -- right about the constraint, too broad about the remedy.
+    Quota is per model:
+
+        images stay serial. gemini-2.5-flash-image is the one that answers 429,
+        twice in the container run and three times on the first public run.
+        Firing three at once manufactures the failure the retry exists to
+        survive.
+
+        narration goes in parallel. gemini-2.5-flash-preview-tts is a different
+        model with a different pool, and has never returned 429 here.
+
+        uploads go in parallel. Cloud Storage spends no Vertex quota at all.
+
+    So three ~8s narration calls overlap three ~11s image calls instead of
+    queueing behind them, and the six uploads finish together: measured 85.6s
+    before, and the images alone are the floor now.
     """
     client = client or GoogleMediaClient.from_env(on_retry=progress)
-    assets: list[SceneAsset] = []
-    for scene in plan.scenes:
-        scene_no = scene.scene_index + 1
-        progress and progress(f"scene {scene_no}/{len(plan.scenes)}: image")
-        image = await client.generate_image(compose_image_prompt(plan, scene))
+    scenes = list(plan.scenes)
+    total = len(scenes)
 
-        progress and progress(f"scene {scene_no}/{len(plan.scenes)}: audio")
+    async def narrate(scene: ScenePlan):
         audio = await client.synthesize(scene.narration)
+        progress and progress(f"scene {scene.scene_index + 1}/{total}: audio")
+        return audio
 
+    async def frames() -> list[bytes]:
+        out = []
+        for scene in scenes:
+            progress and progress(
+                f"scene {scene.scene_index + 1}/{total}: image")
+            out.append(await client.generate_image(
+                compose_image_prompt(plan, scene)))
+        return out
+
+    images, *audios = await asyncio.gather(
+        frames(), *(narrate(scene) for scene in scenes))
+
+    progress and progress(f"uploading {total * 2} objects")
+    uploads = []
+    for scene, image, audio in zip(scenes, images, audios):
         prefix = scene_object_prefix(run_id, scene)
-        progress and progress(f"scene {scene_no}/{len(plan.scenes)}: upload")
-        image_url = await client.upload(f"{prefix}/image.png", image,
-                                        IMAGE_MIME_TYPE)
-        audio_url = await client.upload(f"{prefix}/narration.wav", audio.data,
-                                        AUDIO_MIME_TYPE)
+        uploads.append(client.upload(f"{prefix}/image.png", image,
+                                     IMAGE_MIME_TYPE))
+        uploads.append(client.upload(f"{prefix}/narration.wav", audio.data,
+                                     AUDIO_MIME_TYPE))
+    urls = await asyncio.gather(*uploads)
+
+    assets: list[SceneAsset] = []
+    for index, (scene, audio) in enumerate(zip(scenes, audios)):
         assets.append(SceneAsset(
             scene_index=scene.scene_index,
             description=scene.description,
-            image_url=image_url,
-            audio_url=audio_url,
+            image_url=urls[index * 2],
+            audio_url=urls[index * 2 + 1],
             duration_sec=audio.duration_sec,
         ))
     return assets

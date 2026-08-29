@@ -227,6 +227,23 @@ class VariantOutcome(BaseModel):
     validation_errors: list[str] = Field(default_factory=list)
 
 
+class StageTiming(BaseModel):
+    """What one pipeline stage cost.
+
+    Recorded because the first attempt to make the run faster had to start by
+    finding out where the time went, and the answer was not where it looked:
+    ClickHouse was 7% of a 307-second run and the other 93% was model latency
+    and stages queued behind each other. A timing that is not in the result
+    document is a timing nobody checks after the next change.
+    """
+
+    label: str
+    variant: str = ""
+    elapsed_sec: float
+    tool_calls: int = 0
+    db_ms: float = 0.0
+
+
 class GreenlightRunResult(BaseModel):
     """One end-to-end run: the document the CLI writes and the API returns.
 
@@ -242,6 +259,7 @@ class GreenlightRunResult(BaseModel):
     started_at: float
     finished_at: float
     outcomes: list[VariantOutcome]
+    stages: list[StageTiming] = Field(default_factory=list)
     tool_calls: int = 0
     sql_errors: int = 0
     guardrail_blocks: int = 0
@@ -309,6 +327,6 @@ __all__ = [
     "EvidenceItem", "FilmMotifs", "TreatmentProposal", "PredictionScore",
     "BudgetBand", "AnalogueScoringRequest", "AnalogueEvidence",
     "AnalogueEvidenceDraft", "AnalogueEvidenceBundle",
-    "VariantOutcome", "GreenlightRunResult",
+    "VariantOutcome", "StageTiming", "GreenlightRunResult",
     "ScenePlan", "StoryboardPlan", "SceneAsset",
 ]

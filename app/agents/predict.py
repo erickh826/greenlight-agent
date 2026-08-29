@@ -23,7 +23,9 @@ from __future__ import annotations
 from google.adk.agents import Agent
 from google.genai import types
 
-from app.config import BUDGET_BANDS, MIN_SAMPLE_SIZE, SQL_RETRY_LIMIT
+from app.config import (
+    BUDGET_BANDS, MIN_SAMPLE_SIZE, SCHEMA_STAGE_THINKING_BUDGET,
+    SQL_RETRY_LIMIT)
 from app.contracts import AnalogueEvidenceBundle, AnalogueScoringRequest
 from app.prompts import analyst_system_instruction
 
@@ -213,7 +215,11 @@ def build_predict_converge_agent(model: str) -> Agent:
         instruction=f"{analyst_system_instruction()}\n\n{CONVERGE_TASK}",
         tools=[],
         output_schema=AnalogueEvidenceBundle,
-        generate_content_config=types.GenerateContentConfig(temperature=0.2),
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.2,
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=SCHEMA_STAGE_THINKING_BUDGET),
+        ),
     )
 
 

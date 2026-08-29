@@ -109,6 +109,13 @@ class QueryRun:
         # guardrail-refused call still produces a response that consumes its
         # entry.
         self.pending_sql: list[str] = []
+        # Set by app/pipeline.drive(). Kept here rather than in the pipeline
+        # because everything else about one stage's cost already lives on this
+        # object, and a timing that lives somewhere else gets forgotten.
+        self.label = ""
+        self.variant = ""
+        self.elapsed_sec = 0.0
+        self.db_ms = 0.0
         self.calls = 0
         self.responses = 0
         self.errors = 0
@@ -121,9 +128,10 @@ class QueryRun:
         self.calls += 1
         self.pending_sql.append(sql or "")
 
-    def record_response(self, payload: str) -> bool:
+    def record_response(self, payload: str, db_ms: float = 0.0) -> bool:
         """Fold one tool response in. Returns whether it was a failure."""
         self.responses += 1
+        self.db_ms += db_ms
         sql = self.pending_sql.pop(0) if self.pending_sql else ""
         is_error = is_error_response(payload)
         self.errors += is_error

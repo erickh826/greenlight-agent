@@ -311,7 +311,7 @@ def test_render_storyboard_media_returns_three_scene_assets():
         ("runs/run-1/scene_2/narration.wav", AUDIO_MIME_TYPE),
     ]
     assert progress[0] == "scene 1/3: image"
-    assert progress[-1] == "scene 3/3: upload"
+    assert progress[-1] == "uploading 6 objects"
 
 
 def test_google_media_client_requires_a_bucket(monkeypatch):
@@ -508,3 +508,65 @@ def test_retry_returns_the_value_once_it_succeeds():
         assert state["n"] == 3
     finally:
         media.MEDIA_BACKOFF_SEC = media_backoff
+
+
+
+# --- serial within a quota pool, parallel across them -----------------------
+
+def test_images_are_serial_and_narration_overlaps_them():
+    """The shape the timing fix depends on.
+
+    Images stay one at a time because gemini-2.5-flash-image is the model that
+    answers 429 -- three at once manufactures the failure the retry exists to
+    survive. Narration is a different model with a different pool, so it runs
+    alongside rather than behind.
+    """
+    class Tracked:
+        def __init__(self):
+            self.image_peak = 0
+            self.audio_peak = 0
+            self._image = 0
+            self._audio = 0
+            self.overlapped = False
+
+        async def generate_image(self, prompt):
+            self._image += 1
+            self.image_peak = max(self.image_peak, self._image)
+            for _ in range(4):
+                await asyncio.sleep(0)
+                if self._audio:
+                    self.overlapped = True
+            self._image -= 1
+            return b"frame"
+
+        async def synthesize(self, text):
+            from app.media import SynthesizedAudio
+            self._audio += 1
+            self.audio_peak = max(self.audio_peak, self._audio)
+            for _ in range(4):
+                await asyncio.sleep(0)
+            self._audio -= 1
+            return SynthesizedAudio(b"wav", 8.0)
+
+        async def upload(self, object_name, data, content_type):
+            await asyncio.sleep(0)
+            return f"https://example.test/{object_name}"
+
+    client = Tracked()
+    assets = asyncio.run(render_storyboard_media("run-1", plan(),
+                                                 client=client))
+
+    assert len(assets) == SCENE_COUNT
+    assert client.image_peak == 1, "images must never run concurrently"
+    assert client.audio_peak == SCENE_COUNT, "narration should run in parallel"
+    assert client.overlapped, "narration should overlap the images, not queue"
+
+
+def test_a_failed_frame_still_fails_the_render():
+    """Parallelism must not turn a fatal error into a silent gap."""
+    class Broken(FakeMediaClient):
+        async def generate_image(self, prompt):
+            raise RuntimeError("block_reason=SAFETY")
+
+    with pytest.raises(RuntimeError, match="SAFETY"):
+        asyncio.run(render_storyboard_media("run-1", plan(), client=Broken()))

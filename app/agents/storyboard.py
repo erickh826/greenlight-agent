@@ -21,7 +21,7 @@ from __future__ import annotations
 from google.adk.agents import Agent
 from google.genai import types
 
-from app.config import SCENE_COUNT
+from app.config import SCENE_COUNT, SCHEMA_STAGE_THINKING_BUDGET
 from app.contracts import StoryboardPlan, TreatmentProposal
 from app.media import HOUSE_STYLE
 
@@ -86,7 +86,11 @@ def build_storyboard_agent(model: str) -> Agent:
         ),
         tools=[],
         output_schema=StoryboardPlan,
-        generate_content_config=types.GenerateContentConfig(temperature=0.7),
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.7,
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=SCHEMA_STAGE_THINKING_BUDGET),
+        ),
     )
 
 

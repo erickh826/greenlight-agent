@@ -268,6 +268,27 @@ async def main() -> int:
             rec.write(f"  [{'PASS' if ok else 'FAIL'}] {name}: {detail}")
 
         rec.write()
+        rec.write("=== stage timings ===")
+        rec.write(f"  {'stage':34} {'variant':9} {'sec':>6} "
+                  f"{'calls':>5} {'db_ms':>7}")
+        for st in published.stages:
+            rec.write(f"  {st.label:34} {st.variant or '-':9} "
+                      f"{st.elapsed_sec:6.1f} {st.tool_calls:5} "
+                      f"{st.db_ms:7.0f}")
+        stage_sum = sum(s.elapsed_sec for s in published.stages)
+        db_total = sum(s.db_ms for s in published.stages) / 1000
+        rec.write(f"  {'':34} {'':9} {'-'*6}")
+        rec.write(f"  {'sum of stages (serial equivalent)':34} {'':9} "
+                  f"{stage_sum:6.1f}")
+        rec.write(f"  {'wall clock':34} {'':9} "
+                  f"{published.elapsed_sec:6.1f}")
+        rec.write(f"  {'of which ClickHouse':34} {'':9} "
+                  f"{db_total:6.1f}  "
+                  f"({db_total / max(published.elapsed_sec, 1e-9) * 100:.0f}%)")
+        rec.write(f"  {'saved by running variants together':34} {'':9} "
+                  f"{stage_sum - published.elapsed_sec:6.1f}")
+
+        rec.write()
         rec.write(f"tool calls: {published.tool_calls}  "
                   f"sql errors: {published.sql_errors}  "
                   f"guardrail blocks: {published.guardrail_blocks}  "

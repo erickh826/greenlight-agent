@@ -184,6 +184,13 @@ const fmt = v => (v === null || v === undefined) ? "N/A" : Number(v).toFixed(1);
 const esc = s => String(s ?? "").replace(/[&<>]/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
+// The two variants are scored at the same time, so their queries interleave in
+// this panel. Without a tag on each line the stream is two records shuffled
+// together -- and both scoring stages are named predict_analogue_query, so the
+// agent name cannot tell them apart.
+const tag = d => d.variant
+  ? `<span class="vtag v-${d.variant}">${esc(d.variant)}</span>` : "";
+
 function line(html, cls) {
   const el = document.createElement("div");
   el.className = "ev" + (cls ? " " + cls : "");
@@ -243,15 +250,15 @@ function listen(id) {
   });
 
   on("agent_start", d =>
-    line(`<span class="who">▸ ${esc(d.agent)}</span>` +
+    line(tag(d) + `<span class="who">▸ ${esc(d.agent)}</span>` +
          (d.message ? ` <span class="rowline">${esc(d.message)}</span>` : "")));
   on("tool_call", d =>
-    line(`<span class="rowline">${esc(d.agent)} → ${esc(d.tool)}</span>` +
+    line(tag(d) + `<span class="rowline">${esc(d.agent)} → ${esc(d.tool)}</span>` +
          `<pre class="sql">${esc((d.args && d.args.query) ||
                                  JSON.stringify(d.args))}</pre>`));
   on("tool_result", d => {
     const cols = (d.payload && d.payload.columns) || [];
-    line(`<span class="rowline"><b>${d.rows}</b> rows · ` +
+    line(tag(d) + `<span class="rowline"><b>${d.rows}</b> rows · ` +
          `${Math.round(d.elapsed_ms)} ms` +
          (cols.length ? ` · ${esc(cols.join(", "))}` : "") + `</span>`,
          "rowline");
@@ -259,20 +266,20 @@ function listen(id) {
   on("tool_error", d =>
     line(`✕ ${esc(String(d.error).slice(0, 300))}`, "fail"));
   on("agent_retry", d =>
-    line(`↻ retry ${d.retry || ""}: ${esc(d.message)}`, "retry"));
-  on("stage_failed", d => line(`✕ ${esc(d.message)}`, "fail"));
+    line(tag(d) + `↻ retry ${d.retry || ""}: ${esc(d.message)}`, "retry"));
+  on("stage_failed", d => line(tag(d) + `✕ ${esc(d.message)}`, "fail"));
   on("agent_output", d => {
     const text = String(d.message || "").trim();
     // A schema-bound stage returns its whole object as text. Dumped verbatim
     // it fills the panel and buries the queries this view exists to show, so
     // structured output is collapsed and prose is shown as written.
     if (text.startsWith("{") || text.startsWith("```")) {
-      line(`<span class="rowline">${esc(d.agent)} returned structured ` +
+      line(tag(d) + `<span class="rowline">${esc(d.agent)} returned structured ` +
            `output (${text.length} chars)</span>` +
            `<details><summary>show</summary><pre class="sql">` +
            `${esc(text)}</pre></details>`);
     } else {
-      line(`<span class="say">${esc(text)}</span>`);
+      line(tag(d) + `<span class="say">${esc(text)}</span>`);
     }
   });
   on("awaiting_approval", d => {

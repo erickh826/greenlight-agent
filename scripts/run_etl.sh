@@ -30,4 +30,5 @@ env -u PYTHONPATH -u PYTHONHOME -u CONDA_PREFIX -u CONDA_DEFAULT_ENV \
     --with google-genai --with pydantic \
     --with pytest --with clickhouse-connect \
     --with fastapi --with httpx \
+    --with google-adk --with 'mcp<2' \
     "$@"

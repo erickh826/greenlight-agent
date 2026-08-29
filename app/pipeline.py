@@ -27,6 +27,7 @@ events onto the bus, so the SSE stream sees one continuous run.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -48,7 +49,8 @@ from app.analogue_scoring import (
 from app.config import PROPOSAL_VARIANTS, SQL_RETRY_LIMIT
 from app.contracts import (
     AnalogueEvidenceBundle, AnalogueScoringRequest, GreenlightRunResult,
-    PredictionScore, StoryboardPlan, TreatmentProposal, VariantOutcome)
+    PredictionScore, StageTiming, StoryboardPlan, TreatmentProposal,
+    VariantOutcome)
 from app.media import validate_storyboard_plan
 from app.events import Event, make_event
 from app.proposal_validation import (
@@ -127,14 +129,27 @@ def _guardrail_gate(run: QueryRun, emit: Emit, agent: str):
 
 async def drive(agent, prompt: str, emit: Emit, *, app_name: str,
                 run: QueryRun | None = None,
+                variant: str = "",
                 max_turns: int = MAX_TURNS) -> QueryRun:
     """Run one agent to completion, emitting events as it goes.
 
     One driver for both stage kinds. A no-tools agent simply produces no
     function_call parts, so its output arrives in run.notes and run.calls stays
     at zero -- which is then something the caller can assert rather than assume.
+
+    `variant` is stamped on every event this stage emits. Without it the two
+    variants are indistinguishable in the stream -- both scoring stages are
+    named predict_analogue_query, and only the ADK app_name differs -- which was
+    survivable while they ran one after the other and is not now that they run
+    together.
     """
     run = run or QueryRun()
+    run.label, run.variant = app_name, variant
+    started_at = time.monotonic()
+
+    def emit(event: Event, _emit=emit) -> None:
+        _emit({**event, "variant": variant} if variant else event)
+
     session_service = InMemorySessionService()
     await session_service.create_session(
         app_name=app_name, user_id="greenlight", session_id=app_name)
@@ -164,7 +179,7 @@ async def drive(agent, prompt: str, emit: Emit, *, app_name: str,
                     payload = json.dumps(response, indent=2, default=str)
                     elapsed = ((time.monotonic() - started.pop(0)) * 1000
                                if started else 0.0)
-                    is_error = run.record_response(payload)
+                    is_error = run.record_response(payload, db_ms=elapsed)
 
                     if is_error:
                         emit(make_event("tool_error", agent=agent.name,
@@ -211,6 +226,7 @@ async def drive(agent, prompt: str, emit: Emit, *, app_name: str,
                     f"{run.calls} tool calls and {run.responses} responses: "
                     + message[:1200]))
 
+    run.elapsed_sec = time.monotonic() - started_at
     return run
 
 
@@ -325,6 +341,7 @@ async def converge_with_retry(
     label: str,
     parse: Callable[[str], object],
     validate: Callable[[object], list[str]],
+    variant: str = "",
 ) -> tuple[object | None, list[str], QueryRun]:
     """Run a no-tools schema stage, retrying on a rejected answer.
 
@@ -353,7 +370,7 @@ async def converge_with_retry(
         full = prompt if attempt == 0 else (
             prompt + "\n\n" + CORRECTION_PROMPT.format(
                 errors="\n".join(f"- {e}" for e in errors)))
-        run = await drive(builder(), full, emit,
+        run = await drive(builder(), full, emit, variant=variant,
                           app_name=f"{app_name}_{attempt}")
 
         errors = []
@@ -377,7 +394,8 @@ async def converge_with_retry(
         if not errors:
             return parsed, [], run
 
-        emit(make_event("agent_retry", agent=app_name, retry=attempt + 1,
+        emit(make_event("agent_retry", agent=app_name, variant=variant,
+                        retry=attempt + 1,
                         message=f"attempt {attempt + 1} of "
                                 f"{SQL_RETRY_LIMIT + 1} rejected: "
                                 + "; ".join(errors)))
@@ -402,6 +420,7 @@ async def recombine_phase_b(model: str, variant: str, transcript: str,
         label=f"{variant} phase B",
         parse=parse_treatment_proposal,
         validate=lambda proposal: validator(proposal, transcript),
+        variant=variant,
     )
 
 
@@ -434,13 +453,16 @@ class ScoringOutcome:
     def __init__(self, score: PredictionScore, query_run: QueryRun,
                  bundle: AnalogueEvidenceBundle | None,
                  parse_error: str | None, evidence_errors: list[str],
-                 converge_calls: int):
+                 converge_calls: int, converge_run: QueryRun | None = None):
         self.score = score
         self.query_run = query_run
         self.bundle = bundle
         self.parse_error = parse_error
         self.evidence_errors = evidence_errors
         self.converge_calls = converge_calls
+        # Kept for the stage timings; None when the query stage produced
+        # nothing to converge.
+        self.converge_run = converge_run
 
 
 async def score_proposal(model: str, toolset,
@@ -454,7 +476,8 @@ async def score_proposal(model: str, toolset,
         query_run, emit, query_agent.name)
     query_run = await drive(query_agent, analogue_prompt(request), emit,
                             app_name=f"predict_query_{variant}",
-                            run=query_run, max_turns=PREDICT_MAX_TURNS)
+                            variant=variant, run=query_run,
+                            max_turns=PREDICT_MAX_TURNS)
 
     caveats = comparison_caveats(
         request.budget_band,
@@ -471,13 +494,13 @@ async def score_proposal(model: str, toolset,
                 extra_caveats=caveats),
             query_run=query_run, bundle=None,
             parse_error="stage 1 produced no successful query results",
-            evidence_errors=[], converge_calls=0)
+            evidence_errors=[], converge_calls=0, converge_run=None)
 
     converge_run = await drive(
         build_predict_converge_agent(model),
         "Turn this analogue query transcript into an AnalogueEvidenceBundle."
         "\n\nQUERY TRANSCRIPT\n================\n" + query_run.transcript(),
-        emit, app_name=f"predict_converge_{variant}")
+        emit, app_name=f"predict_converge_{variant}", variant=variant)
 
     raw = "\n".join(converge_run.notes)
     bundle: AnalogueEvidenceBundle | None = None
@@ -514,7 +537,8 @@ async def score_proposal(model: str, toolset,
     return ScoringOutcome(score=score, query_run=query_run, bundle=bundle,
                           parse_error=parse_error,
                           evidence_errors=evidence_errors,
-                          converge_calls=converge_run.calls)
+                          converge_calls=converge_run.calls,
+                          converge_run=converge_run)
 
 
 # --- the run ----------------------------------------------------------------
@@ -547,33 +571,66 @@ async def run_greenlight(
     phase_a = await recombine_phase_a(model, toolset, prompt, emit)
     transcript = phase_a.transcript()
 
-    outcomes: list[VariantOutcome] = []
-    scorings: list[ScoringOutcome] = []
-
-    for variant in variants:
-        proposal, errors, _ = await recombine_phase_b(
+    async def branch(variant: str) -> tuple[VariantOutcome,
+                                            ScoringOutcome | None,
+                                            list[QueryRun]]:
+        """One variant, proposed and scored. Independent of the other."""
+        proposal, errors, phase_b = await recombine_phase_b(
             model, variant, transcript, emit)
         if proposal is None or errors:
-            outcomes.append(VariantOutcome(variant=variant, proposal=proposal,
-                                           score=None,
-                                           validation_errors=errors))
             emit(make_event("stage_failed", agent=f"recombine_b_{variant}",
-                            message="; ".join(errors)))
-            continue
+                            variant=variant, message="; ".join(errors)))
+            return (VariantOutcome(variant=variant, proposal=proposal,
+                                   score=None, validation_errors=errors),
+                    None, [phase_b])
 
         outcome = await score_proposal(
             model, toolset,
             AnalogueScoringRequest(proposal=proposal, budget_band=budget_band,
                                    target_release_bucket=release_bucket),
             emit)
-        scorings.append(outcome)
-        outcomes.append(VariantOutcome(variant=variant, proposal=proposal,
-                                       score=outcome.score))
+        return (VariantOutcome(variant=variant, proposal=proposal,
+                               score=outcome.score),
+                outcome,
+                [r for r in (phase_b, outcome.query_run, outcome.converge_run)
+                 if r is not None])
+
+    # The variants share nothing but the Phase A transcript, and running them
+    # one after the other was 40% of the wall clock: 69.5s of grounded chain
+    # followed by 108.0s of wildcard chain, where the pair takes 108. The
+    # database is 7% of a run, so even if the shared MCP toolset serialises its
+    # calls, the model time that dominates still overlaps.
+    branches = await asyncio.gather(*(branch(v) for v in variants),
+                                    return_exceptions=True)
+
+    outcomes: list[VariantOutcome] = []
+    scorings: list[ScoringOutcome] = []
+    runs: list[QueryRun] = [phase_a]
+    for variant, result in zip(variants, branches):
+        # A variant that raised must not take the other one down -- the same
+        # guarantee the sequential version gave by falling through to `continue`.
+        if isinstance(result, BaseException):
+            emit(make_event("stage_failed", agent=f"variant_{variant}",
+                            variant=variant,
+                            message=f"{type(result).__name__}: {result}"))
+            outcomes.append(VariantOutcome(
+                variant=variant, proposal=None, score=None,
+                validation_errors=[f"{type(result).__name__}: {result}"]))
+            continue
+        outcome, scoring, branch_runs = result
+        outcomes.append(outcome)
+        if scoring is not None:
+            scorings.append(scoring)
+        runs.extend(branch_runs)
 
     result = GreenlightRunResult(
         run_id=run_id, prompt=prompt, model=model,
         started_at=started, finished_at=time.time(),
         outcomes=outcomes,
+        stages=[StageTiming(label=r.label, variant=r.variant,
+                            elapsed_sec=round(r.elapsed_sec, 1),
+                            tool_calls=r.calls, db_ms=round(r.db_ms))
+                for r in runs if r.label],
         tool_calls=phase_a.calls + sum(s.query_run.calls for s in scorings),
         sql_errors=phase_a.errors + sum(s.query_run.errors for s in scorings),
         guardrail_blocks=len(phase_a.blocked)

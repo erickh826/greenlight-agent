@@ -709,6 +709,8 @@ image: ClientError on attempt 2/4, retrying in 8s
 - [ ] 錄製 demo（腳本應在 M3 期間的等待空檔先寫好）
 - [ ] 剪輯：0:00–0:15 自產分鏡開場 → 0:15–2:30 功能演示 → 2:30–2:50 定位陳述
 - [ ] **演示段必須包含：Gemini 產生的 SQL 畫面、ClickHouse 回應、雙方案對比、分鏡播放**
+- [ ] UI 加 judge quick-start template：2–3 個可一鍵帶入的 prompt 範例，
+      並用一句短文說明「輸入 brief → 看 SQL evidence → approve → storyboard」
 - [ ] 英文字幕
 - [ ] 上傳 YouTube 並設為**公開**（非「不公開」）
 - [ ] README：架構圖、資料源授權、分析邊界聲明、執行步驟、log 節錄
@@ -734,6 +736,7 @@ image: ClientError on attempt 2/4, retrying in 8s
 - [ ] 憑證未進入 repo（已掃描歷史）
 - [ ] 程式碼中可見 `google-adk` ＋ `mcp-clickhouse` 的實際 runtime 呼叫
 - [ ] Hosted URL 可從無痕視窗存取並完整跑完一次
+- [ ] Hosted UI 有評審快速上手 template，不需要讀 README 才知道要輸入什麼
 - [ ] 影片 ≤3 分鐘、YouTube 公開、英文字幕、畫面含 SQL 與 ClickHouse 回應
 - [ ] README 含架構圖、三個資料源授權聲明、抽象分析邊界聲明
 - [ ] 平台名稱使用 **Gemini Enterprise Agent Platform**（非 Vertex AI）

@@ -62,6 +62,21 @@ BUDGET_BANDS: Final[dict[str, str]] = {
     "high":  "budget_usd >= 80000000",
 }
 
+# --- Latency ----------------------------------------------------------------
+# The four no-tools stages -- both Phase B branches, the analogue convergence
+# and the storyboard -- turn something that already exists into JSON. They are
+# transcription, not reasoning, and gemini-2.5-flash thinks by default:
+# measured over one 307-second run they spent 88 seconds between them.
+#
+# etl/04_motif_enrichment.py already does this for the same kind of stage, and
+# its comment records the finding that matters here too -- thinking is not extra
+# care on the same answer, it is a different answer.
+#
+# Deliberately NOT applied to the two tools-on agents. Those plan SQL and decide
+# what to query next from what came back, which is the part being judged; a few
+# seconds is not worth trading for worse queries.
+SCHEMA_STAGE_THINKING_BUDGET: Final[int] = 0
+
 # --- Reliability ------------------------------------------------------------
 # A failing query is handed back to the model with the error text verbatim. On
 # the third failure the agent stops with insufficient_evidence rather than
@@ -84,6 +99,7 @@ assert composite_weights_sum_to_one(), (
 __all__ = [
     "SCORING_WEIGHTS", "MIN_SAMPLE_SIZE", "SCENE_COUNT", "PROPOSAL_VARIANTS",
     "MIN_INTEREST_SIGNAL", "WILDCARD_TEMPERATURE", "BUDGET_BANDS",
+    "SCHEMA_STAGE_THINKING_BUDGET",
     "SQL_RETRY_LIMIT", "QUERY_TIMEOUT_SEC",
     "RUN_TIMEOUT_SEC",
 ]

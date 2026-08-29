@@ -44,6 +44,7 @@ class Event(TypedDict, total=False):
     ts: float
     run_id: str
     agent: str
+    variant: str            # which proposal this stage belongs to, if any
     tool: str
     args: dict[str, Any]      # tool_call: MUST include the SQL text
     rows: int                 # tool_result
