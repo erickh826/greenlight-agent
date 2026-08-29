@@ -543,14 +543,66 @@ output_schema ＋ 被拒就帶著錯誤原文重試」，重試預算和 SQL 一
 
 ### 9/5–9/6 週末（2h）
 
-- [ ] 雙方案對比區塊 ＋ 核准按鈕
-- [ ] **證據流區塊：顯示 SQL 原文、列數、耗時、錯誤與 retry**
-- [ ] CSS Ken Burns 播放器（`transform: scale` ＋ `translate`，
-      `audio.timeupdate` 切換場景）
-- [ ] Mobile / desktop layout 檢查，避免文字或按鈕重疊
+- [x] 雙方案對比區塊 ＋ 核准按鈕
+- [x] **證據流區塊：顯示 SQL 原文、列數、耗時、錯誤與 retry**
+- [x] CSS Ken Burns 播放器（`transform: scale` ＋ `translate`，
+      `audio` 結束事件切換場景，無音訊則走 `duration_sec` timer）
+- [x] Mobile / desktop layout 檢查，避免文字或按鈕重疊
 
 **DoD**：瀏覽器可完整跑 run → SSE evidence → proposal compare → approve →
-storyboard playback。
+storyboard playback → **PASS**。
+
+#### Task 2 ＋ Task 3 驗收（2026-08-30）
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **141 passed**
+- `./scripts/run_agent.sh scripts/run_m3_media.py --yes` → **4/4 PASS**
+- **真實端到端走 API**：`POST /run` → 68 個 SSE 事件 → `awaiting_approval`
+  → `POST /approve` → `media_ready` → `done`；事件順序與前端讀的每個欄位
+  都以程式檢查過（`tool_call.args.query`、`tool_result.rows/elapsed_ms`、
+  proposal/score/evidence/scene 欄位、`gate → media_ready → done` 排序）
+- 資產以匿名 `curl` 驗證：3 張 1344×768（16:9）PNG ＋ 3 段 24 kHz WAV，
+  全部 HTTP 200、content-type 正確、時長 8.5 / 11.1 / 8.2 秒（從音檔讀出來的，
+  不是字數估的）
+- 前端以 headless Chromium 在 1440×1000 與 390×844 兩個尺寸截圖檢查：
+  **0 個版面問題、0 個 JS error**，11 種 SSE 事件型別全部有處理
+
+**Task 2：plan 指定的兩個 Google 服務，這個專案一個都用不了**
+
+- Imagen 全系列（`imagen-4.0-generate-001`、fast 版、`imagen-3.0-generate-002`）
+  一律 `404 not found or your project does not have access`
+- Cloud Text-to-Speech API 沒啟用，而且**沒辦法從這裡啟用**——Service Usage API
+  本身也是關的，「用來開 API 的那個 API」是關的
+
+改用同一個 Vertex surface（agent 已在用、不需要多開任何 API，仍然 Google-only）：
+`gemini-2.5-flash-image` ＋ `gemini-2.5-flash-preview-tts`。TTS 回 raw PCM，
+用 stdlib `wave` 包成 WAV——不是為了省一個轉檔器，是因為這樣
+`wav_duration_sec()` 就變成**實測**而不是字數估算的 fallback。
+既有的 `MediaClient` protocol、signed URL 路徑、循序生成全部保留，只換兩個 adapter。
+
+**然後第一次真的生成被整個擋掉**：
+
+```
+block_reason=SAFETY
+'The prompt is blocked due to requesting to remove watermarks'
+```
+
+house style 結尾的 `no logos, no watermarks` 被分類器讀成「要求移除浮水印」。
+但那句不能拿掉——沒有它的探測圖右下角就烙著 `02:47 AM` 和一個膠卷圖示。
+改成 `Clean frame with no lettering, captions or on-screen graphics.`，
+意圖不變、不踩觸發詞。**負面提示的措辭本身會決定請求會不會被拒。**
+
+資產走公開 bucket（`greenlight-agent-demo`）。signed URL 需要 service account，
+而本機的 user ADC 簽不了名——那會變成「本機可以、Cloud Run 可以，但兩邊行為不同」，
+留到登場前才發現。
+
+**Task 3：截圖檢查抓到兩個「測試看不到」的問題**
+
+1. **storyboard 在按 Play 之前是一塊純黑**。技術上正確（還沒開始播），
+   但讀起來像圖片載入失敗。改成建好就顯示第一格靜態畫面，
+   Ken Burns 動畫改由 `.playing` class 觸發，播完停在最後一格而不是淡回黑。
+2. **證據流被 schema 階段的 JSON 洗版**。Phase B / converge 的模型輸出就是
+   一整包 JSON，`agent_output` 原樣印出來會把這個面板存在的理由（SQL）擠掉。
+   結構化輸出現在收合成一行摘要，散文照原樣顯示。
 
 ### 9/7 一（3.5h）
 
