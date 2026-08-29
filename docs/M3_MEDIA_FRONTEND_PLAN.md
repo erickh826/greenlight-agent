@@ -1,7 +1,7 @@
 # M3 Plan: Media And Frontend Demo Surface
 
 **Branch**: `feature/m3-media-frontend-plan`
-**Status**: M2 merged to `main`; this plan starts M3.
+**Status**: M3 complete; public Cloud Run URL verified on 2026-08-30.
 **Goal**: turn the verified CLI pipeline into a public browser demo without
 changing the evidence rules that made M2 pass.
 
@@ -9,7 +9,8 @@ changing the evidence rules that made M2 pass.
 
 - Runtime analysis must still query ClickHouse through `mcp-clickhouse`; the UI
   must show `run_query` SQL, row counts and latency from SSE events.
-- AI services stay Google-only: Gemini, Imagen and Cloud TTS. No fallback may
+- AI services stay Google-only: Gemini for reasoning, `gemini-2.5-flash-image`
+  for frames and `gemini-2.5-flash-preview-tts` for narration. No fallback may
   call a non-Google AI API.
 - Competition deploy stays single-instance Cloud Run:
   `--min-instances=1 --max-instances=1 --no-cpu-throttling --timeout=900`.
@@ -102,7 +103,7 @@ DoD:
 - Planner output contains no unsupported vocabulary and does not change the
   approved proposal's title, variant or core motifs.
 
-## Task 2 — Imagen, TTS And GCS
+## Task 2 — Google Media And GCS
 
 Files:
 
@@ -118,8 +119,9 @@ Files:
 
 Implementation:
 
-- Generate one 16:9 image per scene with Imagen.
-- Generate one narration audio clip per scene with Cloud TTS Chirp 3 HD.
+- Generate one 16:9 image per scene with `gemini-2.5-flash-image`.
+- Generate one narration audio clip per scene with
+  `gemini-2.5-flash-preview-tts`, wrapping raw PCM as browser-playable WAV.
 - Upload assets to GCS under `runs/{run_id}/scene_{n}/...`.
 - Return browser-readable URLs. Prefer signed URLs with a demo-safe TTL unless
   bucket policy is intentionally public for the hackathon.

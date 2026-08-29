@@ -397,9 +397,7 @@ Phase B 沒有 tools，它必須把 Phase A trace 當成「引用的資料」，
 > 9/3–9/7，12.5 小時
 > **目前分支**：`feature/m3-media-frontend-plan`
 > **執行計劃**：`docs/M3_MEDIA_FRONTEND_PLAN.md`
-> **下一個 coding task**：M3 Task 3 — browser experience / Ken Burns player
-> （Task 0 API/SSE shell、Task 1 StoryboardPlan、Task 2 media code path 已於
-> 2026-08-29 完成；Task 2 付費 real smoke 尚未執行）。
+> **狀態**：M3 已完成並部署到公開 URL。下一個 milestone 是 M4 提交。
 
 M3 的順序已於 2026-08-29 調整：先做公開 demo 的 API/SSE shell 與成本保護，
 再做 Imagen/TTS 媒體。原因是 Storyboard 可以降級，但評審看得到 SQL trace、
@@ -474,14 +472,16 @@ unit tests 不打 Gemini / ClickHouse / Imagen → **PASS**。
       （M3 Task 1，2026-08-29 完成）
 - [x] `app/media.py` 前半：`StoryboardPlan` 驗證、`HOUSE_STYLE`、prompt 組裝、
       時長估算——**不花錢就能查的部分**
-- [x] `app/media.py` 後半：Imagen 生圖，輸出 16:9 scene still
+- [x] `app/media.py` 後半：`gemini-2.5-flash-image` 生圖，
+      輸出 16:9 scene still
 - [x] GCS 上傳與 URL 產生（signed URL；可用 `GCS_PUBLIC_ASSETS=true`
       明確切 public demo bucket）
-- [x] Cloud TTS 旁白（Chirp 3 HD，LINEAR16/WAV，從 WAV header 算實際時長）
+- [x] `gemini-2.5-flash-preview-tts` 旁白（raw PCM 包成 WAV，
+      從 WAV header 算實際時長）
 - [x] `SceneAsset` 契約填充完成；媒體錯誤會 publish terminal `error` event
 - [x] `/approve` 改成背景 task：同步只切到 `STORYBOARD` 並排入
       `_render_approved_variant()`；`MEDIA_SLOT` 保護 StoryboardAgent +
-      Imagen/TTS/GCS；`media_ready` 等 `run.scenes` 寫入後才發布
+      Gemini image/TTS + GCS；`media_ready` 等 `run.scenes` 寫入後才發布
 - [ ] Task 2 付費 real smoke：
       `./scripts/run_agent.sh scripts/run_m3_media.py --yes`
 

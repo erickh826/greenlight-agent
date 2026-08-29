@@ -205,38 +205,18 @@ MCP_AUTH_TOKEN=<same secret>
 
 ## 下一步執行鏈（從當前 milestone 接上）
 
-> 當前位置：M2 已 merge 到 `main`。RecombineAgent、PredictAgent、wildcard
-> control、root orchestration、query trace、evidence scoring 全部已通過驗收。
-> 下一個阻斷點是 M3 的 browser demo shell：FastAPI endpoints、SSE evidence
-> stream、approve gate、public run admission control。
+> 當前位置：M3 已完成並部署。公開 URL 已跑過真實瀏覽器無痕驗收：
+> run → SSE SQL evidence → proposal compare → approve → media_ready → done。
+> 下一個阻斷點是 M4 提交：錄影、README 最終核對、全歷史掃密、Devpost。
 
-### 立即（M3 起點，2026-08-29 起）
-
-| 順序 | 任務 | Branch 建議 | 阻斷？ |
-|---|---|---|---|
-| 1 | M3 plan + milestone reset | `feature/m3-media-frontend-plan` | 是 |
-| 2 | FastAPI/SSE demo shell + admission control | `feature/m3-demo-shell` | **是** |
-| 3 | StoryboardAgent + Imagen/TTS/GCS | `feature/m3-media-storyboard` | 是 |
-
-每完成一項：`pytest` + `compileall`；涉及 agent runtime 時再跑最新 e2e trace。
-
-### M3（9/3–9/7）— Phase 1 部署主戰場
-
-| 日期 | 任務 | 與部署的關係 |
-|---|---|---|
-| 9/3 | FastAPI endpoints + SSE evidence stream + admission control | 公開 demo 入口 |
-| 9/4 | `app/media.py` + StoryboardAgent + Imagen/TTS/GCS | `create_task` 非同步管線 |
-| 9/5–9/6 | proposal compare + approve + Ken Burns player | browser demo 主體 |
-| **9/7** | **Dockerfile + Cloud Run deploy + 無痕測試** | **Phase 1 DoD 截止** |
-
-**9/7 當天執行順序：**
+### M4 前最後部署核對
 
 ```bash
 # 1. 本機最後驗收
 python3 -m pytest tests -q
-./scripts/run_agent.sh scripts/run_m2_recombine_phase_a.py   # 或最新 e2e script
+python3 -m compileall app scripts etl tests
 
-# 2. 建置 + 部署（參考 suggestion/CLOUD_RUN_DEPLOYMENT_PLAN.md §4–5）
+# 2. 若有代碼變更才重建 + 部署
 gcloud builds submit --tag ${IMAGE_TAG} .
 gcloud run deploy greenlight-agent \
   --min-instances=1 --max-instances=1 \
