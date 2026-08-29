@@ -13,10 +13,18 @@ precisely because the plan is a separate artefact from the assets.
 
 from __future__ import annotations
 
+import asyncio
+import os
 import re
+import wave
+from dataclasses import dataclass
+from datetime import timedelta
+from io import BytesIO
+from typing import Callable, Protocol
 
 from app.config import SCENE_COUNT
-from app.contracts import ScenePlan, StoryboardPlan, TreatmentProposal
+from app.contracts import (SceneAsset, ScenePlan, StoryboardPlan,
+                           TreatmentProposal)
 from app.guardrails import unsupported_terms
 
 # Hard-coded rather than model-chosen, and the same for every run. Three images
@@ -52,6 +60,12 @@ LETTERING_PATTERNS = (
 # kind of thing nobody notices in code and everybody notices on stage.
 WORDS_PER_SECOND = 2.5
 MIN_SCENE_SEC = 3.0
+IMAGE_MIME_TYPE = "image/jpeg"
+AUDIO_MIME_TYPE = "audio/wav"
+IMAGE_ASPECT_RATIO = "16:9"
+DEFAULT_IMAGE_MODEL = "imagen-4.0-generate-001"
+DEFAULT_TTS_VOICE = "en-US-Chirp3-HD-Charon"
+DEFAULT_SIGNED_URL_TTL_SEC = 6 * 60 * 60
 
 
 def compose_image_prompt(plan: StoryboardPlan, scene: ScenePlan) -> str:
@@ -94,6 +108,261 @@ def estimate_duration_sec(narration: str) -> float:
     """Fallback scene length from the narration, when no audio exists yet."""
     words = len(narration.split())
     return max(MIN_SCENE_SEC, words / WORDS_PER_SECOND)
+
+
+def wav_duration_sec(audio: bytes) -> float:
+    """Duration from a Cloud TTS LINEAR16 response.
+
+    Cloud TTS wraps online LINEAR16 output in a WAV header, which lets the demo
+    use the browser's native audio element and still know how long to hold each
+    Ken Burns beat.
+    """
+    with wave.open(BytesIO(audio), "rb") as reader:
+        frames = reader.getnframes()
+        rate = reader.getframerate()
+    if rate <= 0:
+        raise ValueError("WAV sample rate is not positive")
+    return frames / rate
+
+
+def audio_duration_sec(audio: bytes, narration: str) -> float:
+    """Prefer the real WAV length; fall back to the narration estimate."""
+    try:
+        return max(MIN_SCENE_SEC, wav_duration_sec(audio))
+    except (EOFError, ValueError, wave.Error):
+        return estimate_duration_sec(narration)
+
+
+@dataclass(frozen=True)
+class SynthesizedAudio:
+    data: bytes
+    duration_sec: float
+
+
+class MediaClient(Protocol):
+    async def generate_image(self, prompt: str) -> bytes: ...
+
+    async def synthesize(self, text: str) -> SynthesizedAudio: ...
+
+    async def upload(self, object_name: str, data: bytes,
+                     content_type: str) -> str: ...
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return default
+    return int(value)
+
+
+def _language_code(voice_name: str) -> str:
+    parts = voice_name.split("-")
+    return "-".join(parts[:2]) if len(parts) >= 2 else "en-US"
+
+
+class GoogleMediaClient:
+    """Google-only media adapter: Imagen, Cloud TTS and Cloud Storage.
+
+    Imports stay inside the methods so API startup, /health and unit tests do
+    not depend on the media SDKs being importable. The first real call is behind
+    approval, which is exactly where this spend belongs.
+    """
+
+    def __init__(self, *, bucket_name: str, image_model: str,
+                 tts_voice: str, signed_url_ttl_sec: int,
+                 public_assets: bool = False) -> None:
+        self.bucket_name = bucket_name
+        self.image_model = image_model
+        self.tts_voice = tts_voice
+        self.signed_url_ttl_sec = signed_url_ttl_sec
+        self.public_assets = public_assets
+        self._genai_client = None
+        self._tts_client = None
+        self._storage_client = None
+
+    @classmethod
+    def from_env(cls) -> "GoogleMediaClient":
+        bucket = os.environ.get("GCS_BUCKET", "").strip()
+        if not bucket:
+            raise RuntimeError("GCS_BUCKET is required for media generation")
+        return cls(
+            bucket_name=bucket,
+            image_model=os.environ.get("MODEL_IMAGE")
+            or DEFAULT_IMAGE_MODEL,
+            tts_voice=os.environ.get("MODEL_TTS_VOICE")
+            or DEFAULT_TTS_VOICE,
+            signed_url_ttl_sec=_env_int("GCS_SIGNED_URL_TTL_SEC",
+                                        DEFAULT_SIGNED_URL_TTL_SEC),
+            public_assets=_env_bool("GCS_PUBLIC_ASSETS"),
+        )
+
+    async def generate_image(self, prompt: str) -> bytes:
+        return await asyncio.to_thread(self._generate_image_sync, prompt)
+
+    def _generate_image_sync(self, prompt: str) -> bytes:
+        from google import genai
+        from google.genai import types
+
+        if self._genai_client is None:
+            self._genai_client = genai.Client()
+        response = self._genai_client.models.generate_images(
+            model=self.image_model,
+            prompt=prompt,
+            config=types.GenerateImagesConfig(
+                number_of_images=1,
+                aspect_ratio=IMAGE_ASPECT_RATIO,
+                include_rai_reason=True,
+                output_mime_type=IMAGE_MIME_TYPE,
+            ),
+        )
+        images = getattr(response, "generated_images", None) or []
+        if not images:
+            reason = getattr(response, "rai_filtered_reason", None) or \
+                "no generated_images returned"
+            raise RuntimeError(f"Imagen returned no image: {reason}")
+        data = getattr(images[0].image, "image_bytes", None)
+        if not data:
+            raise RuntimeError("Imagen response did not include image bytes")
+        return bytes(data)
+
+    async def synthesize(self, text: str) -> SynthesizedAudio:
+        return await asyncio.to_thread(self._synthesize_sync, text)
+
+    def _synthesize_sync(self, text: str) -> SynthesizedAudio:
+        from google.cloud import texttospeech
+
+        if self._tts_client is None:
+            self._tts_client = texttospeech.TextToSpeechClient()
+        response = self._tts_client.synthesize_speech(
+            input=texttospeech.SynthesisInput(text=text),
+            voice=texttospeech.VoiceSelectionParams(
+                language_code=_language_code(self.tts_voice),
+                name=self.tts_voice,
+            ),
+            audio_config=texttospeech.AudioConfig(
+                audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+                sample_rate_hertz=24000,
+            ),
+        )
+        audio = bytes(response.audio_content)
+        return SynthesizedAudio(audio, audio_duration_sec(audio, text))
+
+    async def upload(self, object_name: str, data: bytes,
+                     content_type: str) -> str:
+        return await asyncio.to_thread(
+            self._upload_sync, object_name, data, content_type)
+
+    def _upload_sync(self, object_name: str, data: bytes,
+                     content_type: str) -> str:
+        if self._storage_client is None:
+            from google.cloud import storage
+
+            project = os.environ.get("GOOGLE_CLOUD_PROJECT") or None
+            self._storage_client = storage.Client(project=project)
+        blob = self._storage_client.bucket(self.bucket_name).blob(object_name)
+        blob.cache_control = "public, max-age=21600"
+        blob.upload_from_string(data, content_type=content_type)
+
+        if self.public_assets:
+            return blob.public_url
+        expiration = timedelta(seconds=self.signed_url_ttl_sec)
+        try:
+            return self._signed_url(blob, content_type, expiration)
+        except Exception:
+            try:
+                return self._signed_url_with_access_token(
+                    blob, content_type, expiration)
+            except Exception as second_error:
+                raise RuntimeError(
+                    "uploaded media but could not create a signed URL; grant "
+                    "iam.serviceAccounts.signBlob to the runtime service "
+                    "account, enable the IAM Service Account Credentials API, "
+                    "or set GCS_PUBLIC_ASSETS=true for a public demo bucket"
+                ) from second_error
+
+    def _signed_url(self, blob, content_type: str,
+                    expiration: timedelta) -> str:
+        return blob.generate_signed_url(
+            version="v4",
+            expiration=expiration,
+            method="GET",
+            response_type=content_type,
+        )
+
+    def _signed_url_with_access_token(self, blob, content_type: str,
+                                      expiration: timedelta) -> str:
+        import google.auth
+        from google.auth.transport.requests import Request
+
+        credentials, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        credentials.refresh(Request())
+        service_account_email = getattr(
+            credentials, "service_account_email", None)
+        if not service_account_email or not credentials.token:
+            raise RuntimeError(
+                "default credentials expose no service_account_email/token")
+        try:
+            return blob.generate_signed_url(
+                version="v4",
+                expiration=expiration,
+                method="GET",
+                response_type=content_type,
+                service_account_email=service_account_email,
+                access_token=credentials.token,
+            )
+        except Exception as exc:
+            raise RuntimeError("IAM signed URL fallback failed") from exc
+
+
+def scene_object_prefix(run_id: str, scene: ScenePlan) -> str:
+    safe_run = re.sub(r"[^A-Za-z0-9_-]", "_", run_id)
+    return f"runs/{safe_run}/scene_{scene.scene_index}"
+
+
+async def render_storyboard_media(
+    run_id: str,
+    plan: StoryboardPlan,
+    *,
+    client: MediaClient | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> list[SceneAsset]:
+    """Generate and upload the three approved scene assets.
+
+    Sequential on purpose: this is the expensive section of the demo, and doing
+    one image plus one narration at a time is predictable under quota.
+    """
+    client = client or GoogleMediaClient.from_env()
+    assets: list[SceneAsset] = []
+    for scene in plan.scenes:
+        scene_no = scene.scene_index + 1
+        progress and progress(f"scene {scene_no}/{len(plan.scenes)}: image")
+        image = await client.generate_image(compose_image_prompt(plan, scene))
+
+        progress and progress(f"scene {scene_no}/{len(plan.scenes)}: audio")
+        audio = await client.synthesize(scene.narration)
+
+        prefix = scene_object_prefix(run_id, scene)
+        progress and progress(f"scene {scene_no}/{len(plan.scenes)}: upload")
+        image_url = await client.upload(f"{prefix}/image.jpg", image,
+                                        IMAGE_MIME_TYPE)
+        audio_url = await client.upload(f"{prefix}/narration.wav", audio.data,
+                                        AUDIO_MIME_TYPE)
+        assets.append(SceneAsset(
+            scene_index=scene.scene_index,
+            description=scene.description,
+            image_url=image_url,
+            audio_url=audio_url,
+            duration_sec=audio.duration_sec,
+        ))
+    return assets
 
 
 # "no captions", "without a watermark" -- a negated mention is compliance, not a
@@ -207,6 +476,12 @@ def validate_storyboard_plan(plan: StoryboardPlan,
     return errors
 
 
-__all__ = ["compose_image_prompt", "estimate_duration_sec",
-           "lettering_requests", "validate_storyboard_plan",
-           "LETTERING_PATTERNS", "WORDS_PER_SECOND", "MIN_SCENE_SEC"]
+__all__ = [
+    "AUDIO_MIME_TYPE", "DEFAULT_IMAGE_MODEL", "DEFAULT_SIGNED_URL_TTL_SEC",
+    "DEFAULT_TTS_VOICE", "GoogleMediaClient", "IMAGE_ASPECT_RATIO",
+    "IMAGE_MIME_TYPE", "LETTERING_PATTERNS", "MIN_SCENE_SEC", "MediaClient",
+    "SynthesizedAudio", "WORDS_PER_SECOND", "audio_duration_sec",
+    "compose_image_prompt", "estimate_duration_sec", "lettering_requests",
+    "render_storyboard_media", "restates_house_style", "scene_object_prefix",
+    "validate_storyboard_plan", "wav_duration_sec",
+]

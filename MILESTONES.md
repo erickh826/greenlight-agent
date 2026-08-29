@@ -397,8 +397,9 @@ Phase B 沒有 tools，它必須把 Phase A trace 當成「引用的資料」，
 > 9/3–9/7，12.5 小時
 > **目前分支**：`feature/m3-media-frontend-plan`
 > **執行計劃**：`docs/M3_MEDIA_FRONTEND_PLAN.md`
-> **下一個 coding task**：M3 Task 1 — `app/agents/storyboard.py` + `app/media.py`
-> （Task 0 API/SSE shell 已於 2026-08-29 完成）。
+> **下一個 coding task**：M3 Task 3 — browser experience / Ken Burns player
+> （Task 0 API/SSE shell、Task 1 StoryboardPlan、Task 2 media code path 已於
+> 2026-08-29 完成；Task 2 付費 real smoke 尚未執行）。
 
 M3 的順序已於 2026-08-29 調整：先做公開 demo 的 API/SSE shell 與成本保護，
 再做 Imagen/TTS 媒體。原因是 Storyboard 可以降級，但評審看得到 SQL trace、
@@ -473,13 +474,35 @@ unit tests 不打 Gemini / ClickHouse / Imagen → **PASS**。
       （M3 Task 1，2026-08-29 完成）
 - [x] `app/media.py` 前半：`StoryboardPlan` 驗證、`HOUSE_STYLE`、prompt 組裝、
       時長估算——**不花錢就能查的部分**
-- [ ] `app/media.py` 後半：Imagen 生圖，輸出 16:9 scene still
-- [ ] GCS 上傳與 URL 產生
-- [ ] Cloud TTS 旁白（Chirp 3 HD）
-- [ ] `SceneAsset` 契約填充完成；媒體錯誤必須 publish `error` event
+- [x] `app/media.py` 後半：Imagen 生圖，輸出 16:9 scene still
+- [x] GCS 上傳與 URL 產生（signed URL；可用 `GCS_PUBLIC_ASSETS=true`
+      明確切 public demo bucket）
+- [x] Cloud TTS 旁白（Chirp 3 HD，LINEAR16/WAV，從 WAV header 算實際時長）
+- [x] `SceneAsset` 契約填充完成；媒體錯誤會 publish terminal `error` event
+- [x] `/approve` 改成背景 task：同步只切到 `STORYBOARD` 並排入
+      `_render_approved_variant()`；`MEDIA_SLOT` 保護 StoryboardAgent +
+      Imagen/TTS/GCS；`media_ready` 等 `run.scenes` 寫入後才發布
+- [ ] Task 2 付費 real smoke：
+      `./scripts/run_agent.sh scripts/run_m3_media.py --yes`
 
 **DoD**：3 張風格一致的 16:9 圖片可由 URL 存取；音訊可播放或明確走
 Google-only fallback。
+
+#### Task 2 mock 驗收（2026-08-29，提前完成）
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **141 passed**（不打 Gemini /
+  ClickHouse / Imagen / TTS / GCS）
+- `python3 -m compileall app scripts etl tests` → PASS
+- `git diff --check` → PASS
+- `PORT=8099 ./scripts/serve.sh` smoke → `/health` PASS、`/` 200、
+  `/ready` 3/3 PASS；這次 connectivity 冷路徑 **23.2s**，
+  再次確認 `/ready` 不能放 startup/liveness probe
+- `./scripts/run_agent.sh scripts/run_m3_media.py` → DRY RUN PASS，只讀
+  `docs/m3-storyboard-plan.json` 並列出 composed Imagen prompts；不帶 `--yes`
+  不呼叫 Imagen / TTS / GCS
+- real smoke 入口已加：`scripts/run_m3_media.py --yes`。輸出的
+  `docs/m3-media-assets.local.json` / trace 被 `.gitignore` 保護，避免
+  signed URL 誤 commit。
 
 #### Task 1 驗收（2026-08-29，提前完成）
 
@@ -514,10 +537,9 @@ output_schema ＋ 被拒就帶著錯誤原文重試」，重試預算和 SQL 一
    子句的底片術語。Imagen 讀自然語言、開頭權重最高，改成
    **moment → 這部片的 style → house style**。
 
-**剩下要記的**：`/approve` 現在是同步走完 `STORYBOARD → DONE` 並 `bus.close()`。
-Task 2 媒體進來後這段必須改成背景 task ＋ `MEDIA_SLOT`，`done` 與 `close()` 移到
-媒體完成之後，否則串流會在圖片生出來之前就關掉。另外 `media_ready` 要沿用
-`awaiting_approval` 那個修法：等 `run.scenes` 寫進 `RunStore` 之後才發布。
+**已在 Task 2 修掉**：`/approve` 不再同步走完 `STORYBOARD → DONE` 並
+`bus.close()`。現在 approve 只排背景 task；`done` 與 `close()` 在媒體完成後才發，
+`media_ready` 則等 `run.scenes` 寫進 `RunStore` 後發布。
 
 ### 9/5–9/6 週末（2h）
 

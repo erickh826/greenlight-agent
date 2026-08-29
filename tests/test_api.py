@@ -27,16 +27,19 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "etl"))
 
 from app import main  # noqa: E402
+from app.contracts import SceneAsset  # noqa: E402
 from app.events import make_event  # noqa: E402
 from app.state import RunState  # noqa: E402
 
 PROPOSALS = [
     {"variant": "grounded", "title": "The Unveiling", "logline": "A film.",
-     "motif_tags": ["hidden_conspiracy"], "character_archetypes": ["mentor"],
+     "motif_tags": ["hidden_conspiracy", "loss_of_innocence"],
+     "character_archetypes": ["mentor", "authority_figure"],
      "act_structure": "classic_three_act", "rationale": "because",
      "evidence": []},
     {"variant": "wildcard", "title": "Echoes", "logline": "Another film.",
-     "motif_tags": ["revenge"], "character_archetypes": ["orphan"],
+     "motif_tags": ["revenge", "survival"],
+     "character_archetypes": ["orphan", "outcast"],
      "act_structure": "classic_three_act", "rationale": "why not",
      "evidence": []},
 ]
@@ -47,6 +50,20 @@ SCORES = [
     {"proposal_title": "Echoes", "commercial_score": 46.7,
      "attention_score": 49.7, "composite": 47.9, "confidence": "high",
      "evidence": [], "caveats": []},
+]
+SCENES = [
+    {"scene_index": 0, "description": "A records room.",
+     "image_url": "https://storage.example/runs/r/scene_0/image.jpg",
+     "audio_url": "https://storage.example/runs/r/scene_0/narration.wav",
+     "duration_sec": 3.2},
+    {"scene_index": 1, "description": "A hallway.",
+     "image_url": "https://storage.example/runs/r/scene_1/image.jpg",
+     "audio_url": "https://storage.example/runs/r/scene_1/narration.wav",
+     "duration_sec": 4.0},
+    {"scene_index": 2, "description": "A street.",
+     "image_url": "https://storage.example/runs/r/scene_2/image.jpg",
+     "audio_url": "https://storage.example/runs/r/scene_2/narration.wav",
+     "duration_sec": 3.7},
 ]
 
 
@@ -59,6 +76,7 @@ def clean_state(monkeypatch):
     monkeypatch.setattr(main, "store", RunStore())
     monkeypatch.setattr(main, "bus", InProcessEventBus())
     monkeypatch.setattr(main, "ANALYSIS_SLOT", asyncio.Semaphore(1))
+    monkeypatch.setattr(main, "MEDIA_SLOT", asyncio.Semaphore(1))
     main._recent_runs.clear()
     yield
 
@@ -102,6 +120,33 @@ def fake_analysis(*, hold: threading.Event | None = None,
     return run
 
 
+def fake_media(*, hold: threading.Event | None = None,
+               fail: bool = False):
+    """Stand-in for _render_approved_variant: same state moves, no spend."""
+    async def run(run_id: str, variant: str) -> None:
+        store, bus = main.store, main.bus
+        run_obj = store.require(run_id)
+        try:
+            async with main.MEDIA_SLOT:
+                bus.publish(run_id, make_event("agent_start", agent="media"))
+                while hold is not None and not hold.is_set():
+                    await asyncio.sleep(0.01)
+                if fail:
+                    raise RuntimeError("media blew up")
+                run_obj.scenes = SCENES
+                bus.publish(run_id, make_event("media_ready", agent="media",
+                                               scenes=run_obj.scenes))
+                run_obj.transition(RunState.DONE)
+                bus.publish(run_id, make_event("done", agent="root"))
+                bus.close(run_id)
+        except Exception as exc:
+            run_obj.fail(str(exc))
+            bus.publish(run_id, make_event("error", agent="media",
+                                           error=str(exc)))
+            bus.close(run_id)
+    return run
+
+
 def start(client: TestClient, prompt: str = "") -> str:
     res = client.post("/run", json={"prompt": prompt})
     assert res.status_code == 200, res.text
@@ -137,10 +182,12 @@ def test_stream_carries_sql_verbatim_across_retry_and_gate(monkeypatch):
     the connection has to survive, and only `done` ends it.
     """
     monkeypatch.setattr(main, "_analyse", fake_analysis())
+    monkeypatch.setattr(main, "_render_approved_variant", fake_media())
     with TestClient(main.app) as client:
         run_id = start(client)
         wait_for(client, run_id, "awaiting_approval")
         client.post(f"/approve/{run_id}", json={"variant": "grounded"})
+        wait_for(client, run_id, "done")
 
         with client.stream("GET", f"/events/{run_id}") as res:
             assert res.headers["x-accel-buffering"] == "no"
@@ -152,20 +199,91 @@ def test_stream_carries_sql_verbatim_across_retry_and_gate(monkeypatch):
                     sql = line
 
         assert kinds.index("agent_retry") < kinds.index("awaiting_approval")
+        assert kinds.index("media_ready") < kinds.index("done")
         assert kinds.index("awaiting_approval") < kinds.index("done")
         assert kinds[-1] == "done"
         assert "mv_archetype_performance" in sql
 
 
-def test_approve_moves_the_run_on(monkeypatch):
+def test_approve_starts_media_in_the_background(monkeypatch):
+    hold = threading.Event()
     monkeypatch.setattr(main, "_analyse", fake_analysis())
+    monkeypatch.setattr(main, "_render_approved_variant",
+                        fake_media(hold=hold))
     with TestClient(main.app) as client:
         run_id = start(client)
         wait_for(client, run_id, "awaiting_approval")
         res = client.post(f"/approve/{run_id}", json={"variant": "wildcard"})
         assert res.status_code == 200
         assert res.json()["approved_variant"] == "wildcard"
-        assert client.get(f"/runs/{run_id}").json()["state"] == "done"
+        assert res.json()["state"] == "storyboard"
+        assert client.get(f"/runs/{run_id}").json()["state"] == "storyboard"
+
+        hold.set()
+        body = wait_for(client, run_id, "done")
+        assert body["approved_variant"] == "wildcard"
+        assert body["scenes"] == SCENES
+
+
+def test_media_failure_ends_the_stream_with_an_error(monkeypatch):
+    monkeypatch.setattr(main, "_analyse", fake_analysis())
+    monkeypatch.setattr(main, "_render_approved_variant", fake_media(fail=True))
+    with TestClient(main.app) as client:
+        run_id = start(client)
+        wait_for(client, run_id, "awaiting_approval")
+        res = client.post(f"/approve/{run_id}", json={"variant": "grounded"})
+        assert res.status_code == 200
+
+        body = wait_for(client, run_id, "error")
+        assert "media blew up" in body["error"]
+
+
+def test_rendered_media_is_stored_before_media_ready(monkeypatch):
+    from app.events import InProcessEventBus
+    import app.media as media_module
+
+    async def fake_plan_storyboard(model, proposal, emit):
+        return types.SimpleNamespace(scenes=[]), [], types.SimpleNamespace()
+
+    async def fake_render_media(run_id, plan, *, progress=None):
+        progress and progress("scene 1/3: image")
+        return [SceneAsset.model_validate(s) for s in SCENES]
+
+    fake_pipeline = types.ModuleType("app.pipeline")
+    fake_pipeline.plan_storyboard = fake_plan_storyboard
+    monkeypatch.setitem(sys.modules, "app.pipeline", fake_pipeline)
+    monkeypatch.setattr(media_module, "render_storyboard_media",
+                        fake_render_media)
+
+    class RecordingBus(InProcessEventBus):
+        def __init__(self):
+            super().__init__()
+            self.media_ready_state = None
+            self.media_ready_scenes = None
+
+        def publish(self, run_id, event):
+            if event["type"] == "media_ready":
+                run = main.store.require(run_id)
+                self.media_ready_state = run.state.value
+                self.media_ready_scenes = list(run.scenes)
+            super().publish(run_id, event)
+
+    recording_bus = RecordingBus()
+    monkeypatch.setattr(main, "bus", recording_bus)
+
+    run = main.store.create(prompt="")
+    run.proposals = PROPOSALS
+    run.transition(RunState.AWAITING_APPROVAL)
+    run.approved_variant = "grounded"
+    run.transition(RunState.STORYBOARD)
+
+    asyncio.run(main._render_approved_variant(run.run_id, "grounded"))
+
+    stored = main.store.require(run.run_id)
+    assert stored.scenes == SCENES
+    assert stored.state is RunState.DONE
+    assert recording_bus.media_ready_state == "storyboard"
+    assert recording_bus.media_ready_scenes == SCENES
 
 
 # --- admission control ------------------------------------------------------

@@ -27,5 +27,7 @@ PORT="${PORT:-8080}"
 env -u PYTHONPATH -u PYTHONHOME -u CONDA_PREFIX -u CONDA_DEFAULT_ENV \
   uv run --python-preference only-managed --python 3.13 \
     --with google-adk --with 'mcp<2' \
+    --with google-genai --with google-cloud-texttospeech \
+    --with google-cloud-storage \
     --with fastapi --with 'uvicorn[standard]' \
   uvicorn app.main:app --host 0.0.0.0 --port "$PORT" "$@"

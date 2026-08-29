@@ -200,6 +200,65 @@ async def _expire_approval(run_id: str) -> None:
     bus.close(run_id)
 
 
+async def _render_approved_variant(run_id: str, variant: str) -> None:
+    """Storyboard and render media after HITL approval.
+
+    Approval itself is a cheap state transition. This is the expensive branch:
+    one no-tools storyboard pass, three Imagen calls, three TTS calls and GCS
+    uploads. It has its own slot so a media render cannot overlap another media
+    render, while analysis remains free to start for the next visitor.
+    """
+    from app.contracts import TreatmentProposal
+    from app.media import render_storyboard_media
+    from app.pipeline import plan_storyboard
+
+    def emit(event: Event) -> None:
+        bus.publish(run_id, {**event, "run_id": run_id})
+
+    def progress(message: str) -> None:
+        bus.publish(run_id, make_event("agent_output", run_id=run_id,
+                                       agent="media", message=message))
+
+    try:
+        async with MEDIA_SLOT:
+            run = store.require(run_id)
+            proposal_data = next(
+                (p for p in run.proposals if p.get("variant") == variant),
+                None)
+            if proposal_data is None:
+                raise RuntimeError(f"run produced no {variant} proposal")
+
+            proposal = TreatmentProposal.model_validate(proposal_data)
+            model = os.environ.get("MODEL_FAST") or "gemini-2.5-flash"
+            plan, errors, _ = await plan_storyboard(model, proposal, emit)
+            if plan is None:
+                raise RuntimeError("storyboard plan was not produced: "
+                                   + "; ".join(errors))
+            if errors:
+                raise RuntimeError("storyboard plan rejected: "
+                                   + "; ".join(errors))
+
+            bus.publish(run_id, make_event("agent_start", run_id=run_id,
+                                           agent="media"))
+            assets = await render_storyboard_media(
+                run_id, plan, progress=progress)
+
+            run.scenes = [a.model_dump(mode="json") for a in assets]
+            bus.publish(run_id, make_event("media_ready", run_id=run_id,
+                                           agent="media", scenes=run.scenes))
+            run.transition(RunState.DONE)
+            bus.publish(run_id, make_event("done", run_id=run_id,
+                                           agent="root"))
+            bus.close(run_id)
+    except Exception as exc:
+        run = store.get(run_id)
+        if run is not None:
+            run.fail(f"{type(exc).__name__}: {exc}")
+        bus.publish(run_id, make_event("error", run_id=run_id, agent="media",
+                                       error=str(exc)[:1000]))
+        bus.close(run_id)
+
+
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
@@ -286,14 +345,10 @@ async def approve(run_id: str, body: ApproveRequest) -> dict:
 
     run.approved_variant = body.variant
     run.transition(RunState.STORYBOARD)
-    bus.publish(run_id, make_event("agent_start", run_id=run_id,
-                                   agent="storyboard",
-                                   message=f"approved: {body.variant}"))
-    # Media generation lands here in Task 1/2. Until then the run completes at
-    # the gate rather than pretending to render something.
-    run.transition(RunState.DONE)
-    bus.publish(run_id, make_event("done", run_id=run_id, agent="root"))
-    bus.close(run_id)
+    bus.publish(run_id, make_event(
+        "agent_output", run_id=run_id, agent="root",
+        message=f"approved {body.variant}; queued storyboard and media"))
+    asyncio.create_task(_render_approved_variant(run_id, body.variant))
     return {"run_id": run_id, "state": run.state.value,
             "approved_variant": body.variant}
 
@@ -306,7 +361,7 @@ async def run_status(run_id: str) -> dict:
     return {"run_id": run.run_id, "state": run.state.value,
             "prompt": run.prompt, "proposals": run.proposals,
             "scores": run.scores, "approved_variant": run.approved_variant,
-            "error": run.error}
+            "scenes": run.scenes, "error": run.error}
 
 
 __all__ = ["app", "store", "bus"]

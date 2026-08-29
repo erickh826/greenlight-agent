@@ -11,8 +11,13 @@ this can be checked for free.
 
 from __future__ import annotations
 
+import asyncio
 import sys
+import wave
+from io import BytesIO
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -22,8 +27,11 @@ from app.config import SCENE_COUNT  # noqa: E402
 from app.contracts import (  # noqa: E402
     ScenePlan, StoryboardPlan, TreatmentProposal)
 from app.media import (  # noqa: E402
-    HOUSE_STYLE, compose_image_prompt, estimate_duration_sec,
-    lettering_requests, restates_house_style, validate_storyboard_plan)
+    AUDIO_MIME_TYPE, IMAGE_MIME_TYPE, DEFAULT_IMAGE_MODEL, DEFAULT_TTS_VOICE,
+    GoogleMediaClient, HOUSE_STYLE, SynthesizedAudio, audio_duration_sec,
+    compose_image_prompt, estimate_duration_sec, lettering_requests,
+    render_storyboard_media, restates_house_style, scene_object_prefix,
+    validate_storyboard_plan, wav_duration_sec)
 
 PROPOSAL = TreatmentProposal(
     variant="grounded",
@@ -225,3 +233,191 @@ def test_duration_never_collapses_to_nothing():
     """A short line still needs a beat to sit on screen."""
     assert estimate_duration_sec("Go.") >= 3.0
     assert estimate_duration_sec(" ".join(["word"] * 50)) > 15
+
+
+# --- media generation inputs and outputs -----------------------------------
+
+def wav_bytes(duration_sec: float = 1.0, rate: int = 8000) -> bytes:
+    data = BytesIO()
+    with wave.open(data, "wb") as writer:
+        writer.setnchannels(1)
+        writer.setsampwidth(2)
+        writer.setframerate(rate)
+        writer.writeframes(b"\0\0" * int(duration_sec * rate))
+    return data.getvalue()
+
+
+class FakeMediaClient:
+    def __init__(self):
+        self.prompts = []
+        self.narrations = []
+        self.uploads = []
+
+    async def generate_image(self, prompt: str) -> bytes:
+        self.prompts.append(prompt)
+        return b"\xff\xd8\xff fake jpeg"
+
+    async def synthesize(self, text: str) -> SynthesizedAudio:
+        self.narrations.append(text)
+        audio = wav_bytes(4.25)
+        return SynthesizedAudio(audio, audio_duration_sec(audio, text))
+
+    async def upload(self, object_name: str, data: bytes,
+                     content_type: str) -> str:
+        self.uploads.append((object_name, content_type, len(data)))
+        return f"https://storage.example/{object_name}"
+
+
+def test_wav_duration_reads_cloud_tts_linear16_header():
+    assert wav_duration_sec(wav_bytes(1.25)) == pytest.approx(1.25)
+
+
+def test_audio_duration_falls_back_when_audio_is_not_wav():
+    assert audio_duration_sec(b"not a wav", "one two three") == \
+        estimate_duration_sec("one two three")
+
+
+def test_scene_object_prefix_is_run_scoped_and_stable():
+    assert scene_object_prefix("run-1.bad", scene(2)) == \
+        "runs/run-1_bad/scene_2"
+
+
+def test_render_storyboard_media_returns_three_scene_assets():
+    p = plan()
+    client = FakeMediaClient()
+    progress = []
+
+    assets = asyncio.run(render_storyboard_media(
+        "run-1", p, client=client, progress=progress.append))
+
+    assert len(assets) == SCENE_COUNT
+    assert [a.scene_index for a in assets] == [0, 1, 2]
+    assert [a.description for a in assets] == \
+        [s.description for s in p.scenes]
+    assert all(a.duration_sec >= 4.25 for a in assets)
+    assert all(a.image_url.endswith(f"scene_{i}/image.jpg")
+               for i, a in enumerate(assets))
+    assert all(a.audio_url.endswith(f"scene_{i}/narration.wav")
+               for i, a in enumerate(assets))
+
+    assert client.prompts == [compose_image_prompt(p, s) for s in p.scenes]
+    assert client.narrations == [s.narration for s in p.scenes]
+    assert [u[:2] for u in client.uploads] == [
+        ("runs/run-1/scene_0/image.jpg", IMAGE_MIME_TYPE),
+        ("runs/run-1/scene_0/narration.wav", AUDIO_MIME_TYPE),
+        ("runs/run-1/scene_1/image.jpg", IMAGE_MIME_TYPE),
+        ("runs/run-1/scene_1/narration.wav", AUDIO_MIME_TYPE),
+        ("runs/run-1/scene_2/image.jpg", IMAGE_MIME_TYPE),
+        ("runs/run-1/scene_2/narration.wav", AUDIO_MIME_TYPE),
+    ]
+    assert progress[0] == "scene 1/3: image"
+    assert progress[-1] == "scene 3/3: upload"
+
+
+def test_google_media_client_requires_a_bucket(monkeypatch):
+    monkeypatch.delenv("GCS_BUCKET", raising=False)
+    with pytest.raises(RuntimeError, match="GCS_BUCKET"):
+        GoogleMediaClient.from_env()
+
+
+def test_google_media_client_reads_demo_settings_from_env(monkeypatch):
+    monkeypatch.setenv("GCS_BUCKET", "greenlight-demo")
+    monkeypatch.setenv("MODEL_IMAGE", "imagen-test")
+    monkeypatch.setenv("MODEL_TTS_VOICE", "en-US-Chirp3-HD-Leda")
+    monkeypatch.setenv("GCS_SIGNED_URL_TTL_SEC", "900")
+    monkeypatch.setenv("GCS_PUBLIC_ASSETS", "true")
+
+    client = GoogleMediaClient.from_env()
+
+    assert client.bucket_name == "greenlight-demo"
+    assert client.image_model == "imagen-test"
+    assert client.tts_voice == "en-US-Chirp3-HD-Leda"
+    assert client.signed_url_ttl_sec == 900
+    assert client.public_assets is True
+
+
+def test_google_media_client_defaults_to_current_google_models(monkeypatch):
+    monkeypatch.setenv("GCS_BUCKET", "greenlight-demo")
+    monkeypatch.delenv("MODEL_IMAGE", raising=False)
+    monkeypatch.delenv("MODEL_TTS_VOICE", raising=False)
+
+    client = GoogleMediaClient.from_env()
+
+    assert client.image_model == DEFAULT_IMAGE_MODEL
+    assert client.tts_voice == DEFAULT_TTS_VOICE
+
+
+class FakeBlob:
+    public_url = "https://storage.example/public/object"
+
+    def __init__(self):
+        self.uploaded = None
+        self.signed_kwargs = None
+
+    def upload_from_string(self, data, content_type):
+        self.uploaded = (data, content_type)
+
+    def generate_signed_url(self, **kwargs):
+        self.signed_kwargs = kwargs
+        return "https://storage.example/signed/object"
+
+
+class FakeBucket:
+    def __init__(self, blob):
+        self._blob = blob
+
+    def blob(self, object_name):
+        self.object_name = object_name
+        return self._blob
+
+
+class FakeStorage:
+    def __init__(self, blob):
+        self.bucket_obj = FakeBucket(blob)
+
+    def bucket(self, bucket_name):
+        self.bucket_name = bucket_name
+        return self.bucket_obj
+
+
+def test_upload_returns_signed_url_by_default():
+    blob = FakeBlob()
+    storage = FakeStorage(blob)
+    client = GoogleMediaClient(
+        bucket_name="greenlight-demo",
+        image_model=DEFAULT_IMAGE_MODEL,
+        tts_voice=DEFAULT_TTS_VOICE,
+        signed_url_ttl_sec=900,
+    )
+    client._storage_client = storage
+
+    url = client._upload_sync("runs/r/scene_0/image.jpg", b"image",
+                              IMAGE_MIME_TYPE)
+
+    assert url == "https://storage.example/signed/object"
+    assert storage.bucket_name == "greenlight-demo"
+    assert storage.bucket_obj.object_name == "runs/r/scene_0/image.jpg"
+    assert blob.uploaded == (b"image", IMAGE_MIME_TYPE)
+    assert blob.signed_kwargs["version"] == "v4"
+    assert blob.signed_kwargs["method"] == "GET"
+    assert blob.signed_kwargs["response_type"] == IMAGE_MIME_TYPE
+
+
+def test_upload_can_use_public_demo_bucket_without_signing():
+    blob = FakeBlob()
+    storage = FakeStorage(blob)
+    client = GoogleMediaClient(
+        bucket_name="greenlight-demo",
+        image_model=DEFAULT_IMAGE_MODEL,
+        tts_voice=DEFAULT_TTS_VOICE,
+        signed_url_ttl_sec=900,
+        public_assets=True,
+    )
+    client._storage_client = storage
+
+    url = client._upload_sync("runs/r/scene_0/narration.wav", b"audio",
+                              AUDIO_MIME_TYPE)
+
+    assert url == blob.public_url
+    assert blob.uploaded == (b"audio", AUDIO_MIME_TYPE)
+    assert blob.signed_kwargs is None

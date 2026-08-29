@@ -106,9 +106,15 @@ DoD:
 
 Files:
 
+- `app/main.py`
 - `app/media.py`
 - `.env.example`
+- `scripts/run_agent.sh`
+- `scripts/serve.sh`
+- `scripts/run_m3_media.py`
+- `tests/test_api.py`
 - `tests/test_media.py`
+- `web/index.html`
 
 Implementation:
 
@@ -117,6 +123,10 @@ Implementation:
 - Upload assets to GCS under `runs/{run_id}/scene_{n}/...`.
 - Return browser-readable URLs. Prefer signed URLs with a demo-safe TTL unless
   bucket policy is intentionally public for the hackathon.
+- Change `/approve` to return after moving the run to `storyboard`; media runs
+  in a background task under `MEDIA_SLOT`.
+- Publish `media_ready` only after `run.scenes` has been written, then publish
+  `done` and close the SSE stream.
 - On media failure, publish an `error` event and keep the approved proposal
   visible; do not silently fake Google AI output.
 
@@ -124,8 +134,15 @@ DoD:
 
 - A mocked media run returns three `SceneAsset` objects with image URL, audio
   URL and positive duration.
+- Unit tests do not call Imagen, Cloud TTS or GCS.
 - Real smoke test produces three style-consistent 16:9 images and playable
   audio from GCS.
+
+Manual real smoke:
+
+```bash
+./scripts/run_agent.sh scripts/run_m3_media.py --yes
+```
 
 ## Task 3 — Browser Experience
 

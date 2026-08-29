@@ -25,6 +25,9 @@
            margin-top: 1rem; }
   @media (min-width: 44rem) { .cards { grid-template-columns: 1fr 1fr; } }
   .card { border: 1px solid currentColor; padding: 1rem; }
+  .scene img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+               background: #111; display: block; margin-bottom: .5rem; }
+  .scene audio { width: 100%; }
   button { font: inherit; padding: .4rem .8rem; cursor: pointer; }
   input { font: inherit; width: 100%; padding: .4rem; box-sizing: border-box; }
 </style>
@@ -37,10 +40,12 @@
 
 <div id="log"></div>
 <div class="cards" id="cards"></div>
+<div class="cards" id="scenes"></div>
 
 <script>
 const log = document.getElementById("log");
 const cards = document.getElementById("cards");
+const scenes = document.getElementById("scenes");
 const stateEl = document.getElementById("state");
 let runId = null;
 
@@ -53,7 +58,7 @@ function line(text, cls) {
 }
 
 document.getElementById("go").onclick = async () => {
-  log.textContent = ""; cards.textContent = "";
+  log.textContent = ""; cards.textContent = ""; scenes.textContent = "";
   const res = await fetch("/run", {
     method: "POST", headers: {"content-type": "application/json"},
     body: JSON.stringify({prompt: document.getElementById("prompt").value}),
@@ -89,6 +94,11 @@ function listen(id) {
     stateEl.textContent = "awaiting approval";
     render(d.proposals || [], d.scores || []);
   });
+  es.addEventListener("media_ready", e => {
+    const d = JSON.parse(e.data);
+    stateEl.textContent = "media ready";
+    renderScenes(d.scenes || []);
+  });
   es.addEventListener("error", e => {
     if (e.data) line(`!! ${JSON.parse(e.data).error}`, "fail");
     es.close();
@@ -116,11 +126,47 @@ function render(proposals, scores) {
         method: "POST", headers: {"content-type": "application/json"},
         body: JSON.stringify({variant: p.variant}),
       });
-      stateEl.textContent = r.ok ? `approved ${p.variant}`
+      stateEl.textContent = r.ok ? `approved ${p.variant}; rendering media`
                                  : `approve failed: ${r.status}`;
+      if (r.ok) {
+        [...document.querySelectorAll("button")].forEach(x => x.disabled = true);
+      }
     };
     el.appendChild(b);
     cards.appendChild(el);
+  });
+}
+
+function renderScenes(items) {
+  scenes.textContent = "";
+  items.forEach(s => {
+    const el = document.createElement("div");
+    el.className = "card scene";
+
+    const h = document.createElement("h2");
+    h.textContent = `Scene ${s.scene_index + 1}`;
+    el.appendChild(h);
+
+    const img = document.createElement("img");
+    img.src = s.image_url;
+    img.alt = s.description || `Scene ${s.scene_index + 1}`;
+    el.appendChild(img);
+
+    const p = document.createElement("p");
+    p.textContent = s.description || "";
+    el.appendChild(p);
+
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.src = s.audio_url;
+    el.appendChild(audio);
+
+    const meta = document.createElement("p");
+    meta.className = "meta";
+    meta.textContent = `${fmt(s.duration_sec)} sec`;
+    el.appendChild(meta);
+
+    scenes.appendChild(el);
   });
 }
 
