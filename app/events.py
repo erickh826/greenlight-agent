@@ -25,13 +25,24 @@ from typing import Any, AsyncIterator, Literal, Protocol, TypedDict
 
 EventType = Literal[
     "agent_start", "tool_call", "tool_result", "tool_error", "agent_output",
-    "awaiting_approval", "media_ready", "done", "error",
+    "agent_retry", "stage_failed", "awaiting_approval", "media_ready",
+    "done", "error",
 ]
+
+# Receiving one of these ends a subscription. Everything else is progress, and
+# the distinction is not cosmetic: the pipeline retries a rejected Phase B
+# proposal and carries on past a failed variant, and publishing those as
+# "error" closed every browser's stream mid-run while the CLI -- which does not
+# subscribe to its own bus -- ran happily to completion. A recoverable problem
+# is agent_retry (another attempt follows) or stage_failed (this unit gave up,
+# the run continues without it); "error" means the run itself is over.
+TERMINAL_EVENTS: tuple[EventType, ...] = ("done", "error")
 
 
 class Event(TypedDict, total=False):
     type: EventType
     ts: float
+    run_id: str
     agent: str
     tool: str
     args: dict[str, Any]      # tool_call: MUST include the SQL text
@@ -59,6 +70,8 @@ class EventBus(Protocol):
 
     def close(self, run_id: str) -> None: ...
 
+    def discard(self, run_id: str) -> None: ...
+
 
 class InProcessEventBus:
     """Fan-out queue per run. First implementation; see the module note.
@@ -71,15 +84,24 @@ class InProcessEventBus:
     # more than this many unread events has a bigger problem than the drop.
     MAX_QUEUED = 1000
 
+    # Replay is capped below the queue so a late subscriber can always take the
+    # whole backlog without filling its queue on the first line. A full M2 run
+    # produces 86 events; the cap is for a pathological run, not a normal one.
+    MAX_HISTORY = 800
+
     def __init__(self) -> None:
         self._subscribers: dict[str, list[asyncio.Queue[Event | None]]] = \
             defaultdict(list)
         self._history: dict[str, list[Event]] = defaultdict(list)
+        self._closed: set[str] = set()
 
     def publish(self, run_id: str, event: Event) -> None:
         # Kept so a viewer attaching mid-run sees what already happened rather
         # than joining a stream in progress.
-        self._history[run_id].append(event)
+        history = self._history[run_id]
+        history.append(event)
+        if len(history) > self.MAX_HISTORY:
+            del history[:len(history) - self.MAX_HISTORY]
         for q in self._subscribers[run_id]:
             try:
                 q.put_nowait(event)
@@ -87,28 +109,58 @@ class InProcessEventBus:
                 pass
 
     async def subscribe(self, run_id: str) -> AsyncIterator[Event]:
+        """Replay what has happened, then follow the run.
+
+        Replay never raises. The first version called put_nowait for every past
+        event against a bounded queue, so a run with more history than
+        MAX_QUEUED made subscribing throw QueueFull -- the failure landing on
+        the reader, for something the writer did.
+        """
         q: asyncio.Queue[Event | None] = asyncio.Queue(maxsize=self.MAX_QUEUED)
-        for past in self._history[run_id]:
-            q.put_nowait(past)
+        backlog = list(self._history[run_id])
         self._subscribers[run_id].append(q)
         try:
+            for past in backlog:
+                yield past
+                if past["type"] in TERMINAL_EVENTS:
+                    return
+            # A run that finished before anyone attached still ends the stream:
+            # the browser gets the whole trace and a closed connection rather
+            # than a complete trace and a socket that never closes.
+            if run_id in self._closed:
+                return
             while True:
                 event = await q.get()
                 if event is None:      # close() sentinel
                     return
                 yield event
-                if event["type"] in ("done", "error"):
+                if event["type"] in TERMINAL_EVENTS:
                     return
         finally:
-            self._subscribers[run_id].remove(q)
+            if q in self._subscribers[run_id]:
+                self._subscribers[run_id].remove(q)
 
     def close(self, run_id: str) -> None:
+        """End live subscriptions. History stays, so a reload still replays."""
+        self._closed.add(run_id)
         for q in self._subscribers[run_id]:
             try:
                 q.put_nowait(None)
             except asyncio.QueueFull:
                 pass
+
+    def discard(self, run_id: str) -> None:
+        """Drop a run's history for good. Called when the run is swept.
+
+        Pair this with removing the run from the RunStore. Once discarded the
+        run is simply unknown here, and subscribing to an unknown run waits --
+        which is right for a run that has not published yet and wrong for one
+        that has been forgotten. app/main.py answers 404 before it gets here.
+        """
         self._history.pop(run_id, None)
+        self._subscribers.pop(run_id, None)
+        self._closed.discard(run_id)
 
 
-__all__ = ["Event", "EventType", "EventBus", "InProcessEventBus", "make_event"]
+__all__ = ["Event", "EventType", "EventBus", "InProcessEventBus",
+           "make_event", "TERMINAL_EVENTS"]

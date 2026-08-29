@@ -188,20 +188,23 @@ async def drive(agent, prompt: str, emit: Emit, *, app_name: str,
             if run.over_retry_limit():
                 run.retries_exhausted = True
                 emit(make_event(
-                    "error", agent=agent.name,
+                    "stage_failed", agent=agent.name,
+                    retry=run.consecutive_failures,
                     message=f"{run.consecutive_failures} consecutive "
                             f"failures; stopping at the limit of "
                             f"{run.attempts_allowed} attempts"))
                 break
             if run.calls > max_turns:
-                emit(make_event("error", agent=agent.name,
+                emit(make_event("stage_failed", agent=agent.name,
                                 message=f"more than {max_turns} tool calls"))
                 break
     except Exception as exc:
         message = f"{type(exc).__name__}: {exc}"
         run.model_errors.append(message)
+        # Not terminal: drive() runs one stage and has no idea whether the run
+        # can continue without it. Only run_greenlight decides that.
         emit(make_event(
-            "error", agent=agent.name,
+            "stage_failed", agent=agent.name,
             message="model execution failed after "
                     f"{run.calls} tool calls and {run.responses} responses: "
                     + message[:1200]))
@@ -369,7 +372,7 @@ async def recombine_phase_b(model: str, variant: str, transcript: str,
         if not errors:
             return proposal, [], run
 
-        emit(make_event("error", agent=f"recombine_b_{variant}",
+        emit(make_event("agent_retry", agent=f"recombine_b_{variant}",
                         retry=attempt + 1,
                         message=f"attempt {attempt + 1} of "
                                 f"{SQL_RETRY_LIMIT + 1} rejected: "
@@ -507,7 +510,7 @@ async def run_greenlight(
             outcomes.append(VariantOutcome(variant=variant, proposal=proposal,
                                            score=None,
                                            validation_errors=errors))
-            emit(make_event("error", agent=f"recombine_b_{variant}",
+            emit(make_event("stage_failed", agent=f"recombine_b_{variant}",
                             message="; ".join(errors)))
             continue
 
@@ -529,7 +532,13 @@ async def run_greenlight(
         guardrail_blocks=len(phase_a.blocked)
         + sum(len(s.query_run.blocked) for s in scorings),
     )
-    emit(make_event("done", agent="root",
+    # awaiting_approval, not done: analysis finishing is not the run finishing.
+    # The next thing that happens is a person choosing a variant, and only the
+    # caller knows whether there is one -- the CLI publishes `done` right after
+    # this, the API keeps the stream open for /approve. Emitting a terminal
+    # event here would close every browser's SSE connection at exactly the
+    # moment the proposals appear on screen.
+    emit(make_event("awaiting_approval", agent="root",
                     proposals=[o.proposal.model_dump(mode="json")
                                for o in outcomes if o.proposal],
                     scores=[o.score.model_dump(mode="json")

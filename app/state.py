@@ -97,15 +97,26 @@ class RunStore:
             raise KeyError(f"unknown run: {run_id}")
         return run
 
-    def sweep(self, max_age_sec: float = 3600) -> int:
-        """Drop finished runs older than max_age_sec. Returns how many went."""
+    def count(self) -> int:
+        return len(self._runs)
+
+    def sweep_ids(self, max_age_sec: float = 3600) -> list[str]:
+        """Drop finished runs older than max_age_sec. Returns which ones went.
+
+        The ids matter: whoever holds the event history for these runs has to
+        forget them at the same moment, or the store shrinks while the bus
+        keeps every event of every run the process has ever served.
+        """
         cutoff = time.time() - max_age_sec
         stale = [rid for rid, r in self._runs.items()
                  if r.state in (RunState.DONE, RunState.ERROR)
                  and r.updated_at < cutoff]
         for rid in stale:
             del self._runs[rid]
-        return len(stale)
+        return stale
+
+    def sweep(self, max_age_sec: float = 3600) -> int:
+        return len(self.sweep_ids(max_age_sec))
 
 
 __all__ = ["RunState", "Run", "RunStore", "InvalidTransition"]

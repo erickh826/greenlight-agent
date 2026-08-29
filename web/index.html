@@ -1,0 +1,128 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greenlight</title>
+<!--
+  Task 0 skeleton. This exists to exercise /run, /events/{id} and /approve/{id}
+  end to end from a browser; the designed interface is M3 Task 3.
+
+  The one thing it already does properly is show the SQL verbatim beside its row
+  count and elapsed time, because that is the claim the project is making and it
+  should be visible from the first version rather than added at the end.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+         margin: 0 auto; max-width: 60rem; padding: 1.5rem; }
+  h1 { font-size: 1.1rem; letter-spacing: .04em; text-transform: uppercase; }
+  #log { border: 1px solid currentColor; padding: .75rem; height: 26rem;
+         overflow-y: auto; white-space: pre-wrap; font-size: 13px; }
+  .sql { opacity: .95; }
+  .meta { opacity: .6; }
+  .retry { opacity: .7; font-style: italic; }
+  .fail { font-weight: 700; }
+  .cards { display: grid; gap: 1rem; grid-template-columns: 1fr;
+           margin-top: 1rem; }
+  @media (min-width: 44rem) { .cards { grid-template-columns: 1fr 1fr; } }
+  .card { border: 1px solid currentColor; padding: 1rem; }
+  button { font: inherit; padding: .4rem .8rem; cursor: pointer; }
+  input { font: inherit; width: 100%; padding: .4rem; box-sizing: border-box; }
+</style>
+
+<h1>Greenlight — historical analogue scoring</h1>
+
+<p><input id="prompt" maxlength="400"
+          placeholder="leave blank for the default brief"></p>
+<p><button id="go">Run analysis</button> <span id="state" class="meta"></span></p>
+
+<div id="log"></div>
+<div class="cards" id="cards"></div>
+
+<script>
+const log = document.getElementById("log");
+const cards = document.getElementById("cards");
+const stateEl = document.getElementById("state");
+let runId = null;
+
+function line(text, cls) {
+  const el = document.createElement("div");
+  if (cls) el.className = cls;
+  el.textContent = text;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+
+document.getElementById("go").onclick = async () => {
+  log.textContent = ""; cards.textContent = "";
+  const res = await fetch("/run", {
+    method: "POST", headers: {"content-type": "application/json"},
+    body: JSON.stringify({prompt: document.getElementById("prompt").value}),
+  });
+  if (!res.ok) { line(`${res.status}: ${(await res.json()).detail}`, "fail"); return; }
+  runId = (await res.json()).run_id;
+  stateEl.textContent = `run ${runId}`;
+  listen(runId);
+};
+
+function listen(id) {
+  const es = new EventSource(`/events/${id}`);
+  es.addEventListener("agent_start", e =>
+    line(`\n=== ${JSON.parse(e.data).agent} ===`));
+  es.addEventListener("tool_call", e => {
+    const d = JSON.parse(e.data);
+    line((d.args && d.args.query) || JSON.stringify(d.args), "sql");
+  });
+  es.addEventListener("tool_result", e => {
+    const d = JSON.parse(e.data);
+    line(`  ${d.rows} rows in ${Math.round(d.elapsed_ms)} ms`, "meta");
+  });
+  es.addEventListener("tool_error", e =>
+    line(`  !! ${JSON.parse(e.data).error}`.slice(0, 300), "fail"));
+  es.addEventListener("agent_retry", e =>
+    line(`  ~~ ${JSON.parse(e.data).message}`, "retry"));
+  es.addEventListener("stage_failed", e =>
+    line(`  !! ${JSON.parse(e.data).message}`, "fail"));
+  es.addEventListener("agent_output", e =>
+    line(JSON.parse(e.data).message));
+  es.addEventListener("awaiting_approval", e => {
+    const d = JSON.parse(e.data);
+    stateEl.textContent = "awaiting approval";
+    render(d.proposals || [], d.scores || []);
+  });
+  es.addEventListener("error", e => {
+    if (e.data) line(`!! ${JSON.parse(e.data).error}`, "fail");
+    es.close();
+  });
+  es.addEventListener("done", () => { stateEl.textContent = "done"; es.close(); });
+}
+
+function render(proposals, scores) {
+  proposals.forEach(p => {
+    const s = scores.find(x => x.proposal_title === p.title) || {};
+    const el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = `
+      <h2>${p.variant} — ${p.title}</h2>
+      <p>${p.logline}</p>
+      <p class="meta">${p.motif_tags.join(", ")} / ${p.character_archetypes.join(", ")}</p>
+      <p>commercial ${fmt(s.commercial_score)} · attention ${fmt(s.attention_score)}
+         · <b>composite ${fmt(s.composite)}</b> (${s.confidence || "-"})</p>
+      <p class="meta">${(s.evidence || []).length} evidence items ·
+         historical analogues, not a box-office forecast</p>`;
+    const b = document.createElement("button");
+    b.textContent = `Approve ${p.variant}`;
+    b.onclick = async () => {
+      const r = await fetch(`/approve/${runId}`, {
+        method: "POST", headers: {"content-type": "application/json"},
+        body: JSON.stringify({variant: p.variant}),
+      });
+      stateEl.textContent = r.ok ? `approved ${p.variant}`
+                                 : `approve failed: ${r.status}`;
+    };
+    el.appendChild(b);
+    cards.appendChild(el);
+  });
+}
+
+const fmt = v => (v === null || v === undefined) ? "N/A" : v.toFixed(1);
+</script>

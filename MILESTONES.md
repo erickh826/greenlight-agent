@@ -397,7 +397,8 @@ Phase B 沒有 tools，它必須把 Phase A trace 當成「引用的資料」，
 > 9/3–9/7，12.5 小時
 > **目前分支**：`feature/m3-media-frontend-plan`
 > **執行計劃**：`docs/M3_MEDIA_FRONTEND_PLAN.md`
-> **下一個 coding task**：M3 Task 0 — `app/main.py` + SSE + admission control。
+> **下一個 coding task**：M3 Task 1 — `app/agents/storyboard.py` + `app/media.py`
+> （Task 0 API/SSE shell 已於 2026-08-29 完成）。
 
 M3 的順序已於 2026-08-29 調整：先做公開 demo 的 API/SSE shell 與成本保護，
 再做 Imagen/TTS 媒體。原因是 Storyboard 可以降級，但評審看得到 SQL trace、
@@ -405,20 +406,61 @@ M3 的順序已於 2026-08-29 調整：先做公開 demo 的 API/SSE shell 與�
 
 ### 9/3 四（3.5h）
 
-- [ ] `app/main.py`：FastAPI endpoints
+- [x] `app/main.py`：FastAPI endpoints
       `GET /`、`POST /run`、`GET /events/{run_id}`、
-      `POST /approve/{run_id}`、`GET /health`
-- [ ] API path 接上既有 `run_greenlight()`，但 analysis 完成時發布
-      `awaiting_approval`，不可讓 CLI 用的 `done` 提早關掉 SSE
-- [ ] 公開 demo 保護：同時只允許 1 個 active `/run`、每 IP rate limit、
-      prompt 長度上限、busy response
-- [ ] `InProcessEventBus` replay hardening：history cap、QueueFull 安全、
-      terminal cleanup
-- [ ] `web/index.html` 最小骨架：能啟動 run、接 SSE、顯示 SQL/rows/latency、
+      `POST /approve/{run_id}`、`GET /runs/{run_id}`、`GET /health`、`GET /ready`
+- [x] API path 接上既有 `run_greenlight()`；`run_greenlight()` 改發
+      `awaiting_approval`（非終止），`done` 由呼叫端決定何時發
+- [x] 公開 demo 保護：`ANALYSIS_SLOT` 一次一個分析、每 IP 10 分鐘 3 次、
+      prompt 400 字上限、409 busy response
+- [x] `InProcessEventBus` replay hardening：history cap、QueueFull 安全、
+      `close()` 保留 history、`discard()` 與 `RunStore.sweep_ids()` 成對回收
+- [x] `web/index.html` 最小骨架：啟動 run、接 SSE、顯示 SQL/rows/latency、
       顯示 proposals/scores、送 approve
+- [x] `scripts/serve.sh`：本機服務進入點（和 agent 同一套環境衛生）
 
 **DoD**：瀏覽器能看到 M2 agent 查詢過程，analysis 完成後停在 approve gate；
-unit tests 不打 Gemini / ClickHouse / Imagen。
+unit tests 不打 Gemini / ClickHouse / Imagen → **PASS**。
+
+驗收（2026-08-29，提前完成）：
+
+- `./scripts/run_etl.sh -m pytest tests -q` → **108 passed**（新增 20 個：
+  `tests/test_events.py` 8、`tests/test_api.py` 12），全部用 fake analysis，
+  不打任何付費 API，0.28s 跑完
+- `python3 -m compileall app scripts etl tests` → PASS
+- 真實伺服器 smoke：`PORT=8099 ./scripts/serve.sh` → `/health`、`/`、`/ready` 皆正常
+- **真實端到端（走 API，不是 CLI）**：`POST /run` → SSE 41 個事件依序抵達 →
+  `awaiting_approval` → `POST /approve` → `done`。
+  grounded `The Unveiling` composite 58.6（high, 12 evidence）、
+  wildcard `The Obsidian Vault` composite 42.3（high, 7 evidence）
+
+**開工前查出的三件 plan 沒涵蓋的事**：
+
+1. **`error` 事件會關掉 SSE 訂閱，而 pipeline 拿它報可復原的狀況。**
+   `app/events.py` 的 `subscribe()` 收到 `done` 或 `error` 就 return，
+   而 `app/pipeline.py` 有四處發 `error`：Phase B 某次嘗試被拒（**馬上重試**）、
+   stage 撞到 retry/turn 上限、一個 variant 失敗（另一個還在跑）、stage 例外。
+   也就是說上一輪那個 214 字元 logline 被拒然後重試成功的情況，
+   **在瀏覽器裡會表現成「串流無聲無息停住」**——CLI 一路跑完，SSE 訂閱者
+   在第一次重試就被踢掉。CLI 不訂閱自己的 bus，所以 M2 的 12/12 完全照不到。
+   現在事件分三類：`agent_retry`（還會再試）、`stage_failed`（這一段放棄，
+   run 繼續）、`error`（run 結束）。`TERMINAL_EVENTS` 是具名常數，
+   `tests/test_events.py` 直接斷言前兩者不在裡面。
+   **這輪真實 API run 就驗到了**：中途有一次真的 ClickHouse code 47，
+   串流照樣往下跑了 8 次 tool call 到 `awaiting_approval`。
+2. **核准閘門原本會把唯一 `/run` 名額無限期佔住。** 決策：名額只護分析階段，
+   proposals 一產生就釋放；媒體另用 `MEDIA_SLOT`；停在閘門的 run 設 10 分鐘
+   `APPROVAL_TTL_SEC` 只為記憶體回收。這樣一個評審看完方案就去吃飯，
+   不會讓後面每個訪客都拿到 busy。`RunStore` 因此要能同時持有多個等核准的 run。
+3. **`/health` 不能做 MCP warm-up。** plan Task 4 原本要 `/health` 跑
+   `SELECT 1`，但實測 `/ready` 的 connectivity 冷啟動是 **25.4 秒**
+   （另兩個 MV 各約 0.96 秒）。startup probe 等不了，會殺掉容器再重啟進同一個
+   冷啟動，無窮迴圈。已拆成便宜的 `/health`（liveness）與 `/ready`（做 warm-up）。
+
+**另外兩個順手修掉的**：`subscribe()` 的 replay 對 bounded queue 逐筆
+`put_nowait`，history 超過 `MAX_QUEUED` 就把 `QueueFull` 丟在讀者身上；
+`close()` 原本直接丟掉 history，導致 run 結束後重新整理頁面看不到 trace，
+現在保留 history 並在 sweep 時才 `discard()`。
 
 ### 9/4 五（3.5h）
 
