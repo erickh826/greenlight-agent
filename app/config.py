@@ -90,7 +90,16 @@ SCHEMA_STAGE_THINKING_BUDGET: Final[int] = 0
 # burning turns.
 SQL_RETRY_LIMIT: Final[int] = 2
 
-# Non-functional targets from SYSTEM_SPEC §11, enforced rather than aspirational.
+# Non-functional targets from SYSTEM_SPEC §11. Recorded, NOT enforced -- nothing
+# reads either of these, and the comment here used to claim the opposite, which
+# is worse than not stating it: a reader takes it as a guarantee.
+#
+# What actually bounds a run: Cloud Run's --timeout=900 on the request, MAX_TURNS
+# and PREDICT_MAX_TURNS on the agent loops, SQL_RETRY_LIMIT on failures, and
+# MEDIA_ATTEMPTS in app/media.py. Wiring these two in would mean cancelling a
+# run mid-flight and unwinding the MCP subprocess cleanly; not worth the risk
+# before the deadline, and the numbers are stale anyway now that a full run is
+# ~168s.
 QUERY_TIMEOUT_SEC: Final[int] = 30
 RUN_TIMEOUT_SEC: Final[int] = 300
 

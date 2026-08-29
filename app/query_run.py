@@ -164,6 +164,11 @@ class QueryRun:
         self.calls += other.calls
         self.responses += other.responses
         self.errors += other.errors
+        # Without this the follow-up session's queries are counted and their
+        # latency is not, so ClickHouse looks like a smaller share of the run
+        # than it is -- which is the one number this accounting exists to get
+        # right.
+        self.db_ms += other.db_ms
         self.consecutive_failures = other.consecutive_failures
         self.retries_exhausted = (
             self.retries_exhausted or other.retries_exhausted)

@@ -1,6 +1,6 @@
 === Greenlight: end-to-end run ===
-run_id:         e34b480b0892
-timestamp:      2026-08-29T18:25:59.328577+00:00
+run_id:         0cb51ef5e984
+timestamp:      2026-08-29T19:04:09.066284+00:00
 model:          gemini-2.5-flash
 variants:       grounded, wildcard
 budget band:    mid
@@ -9,9 +9,9 @@ clickhouse:     <CLICKHOUSE_HOST>:8443 (TLS)
 prompt:         Find promising narrative recombinations for a mid-budget original film. Use the database yourself: start broad, cite sample counts, and do not invent columns or vocabulary terms.
 
 --- warm-up (pre-flight) ---
-    ok    25417.6 ms  connectivity
-    ok     1034.8 ms  mv_archetype_performance
-    ok     1151.6 ms  mv_motif_pair_stats
+    ok    30006.8 ms  connectivity
+    ok    30024.6 ms  mv_archetype_performance
+    ok    30018.8 ms  mv_motif_pair_stats
 
 === recombine_phase_a ===
 --- recombine_phase_a → run_query ---
@@ -23,55 +23,15 @@ SELECT
     quantileMerge(0.5)(interest_pct_median) AS interest_median
 FROM mv_archetype_performance
 GROUP BY archetype
-HAVING n_roi >= 8 AND n_interest >= 8
+HAVING n_roi >= 8
 ORDER BY roi_median DESC
 LIMIT 5;
---- recombine_phase_a → run_query ---
-SELECT
-    archetype,
-    countMerge(sample_count) AS n_roi,
-    quantileMerge(0.5)(roi_median) AS roi_median,
-    countMerge(interest_sample_count) AS n_interest,
-    quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_archetype_performance
-GROUP BY archetype
-HAVING n_roi >= 8 AND n_interest >= 8
-ORDER BY interest_median DESC
-LIMIT 5;
-    5 rows in 1235 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
+    5 rows in 8061 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
       authority_figure | 25 | 3.5104405879974365 | 22 | 0.4175257682800293
       caregiver | 151 | 2.9679999351501465 | 142 | 0.4530743509531021
       rebel | 115 | 2.9134228229522705 | 109 | 0.47659575939178467
       reluctant_hero | 521 | 2.7435293197631836 | 500 | 0.5798230469226837
       mentor | 370 | 2.644397735595703 | 356 | 0.564094603061676
-    5 rows in 1236 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
-      destroyer | 19 | 2.440548896789551 | 18 | 0.6236950755119324
-      outcast | 72 | 2.292385697364807 | 64 | 0.618708461523056
-      ruler | 36 | 1.7906644940376282 | 33 | 0.6048110127449036
-      orphan | 142 | 2.3101115226745605 | 134 | 0.5808510780334473
-      reluctant_hero | 521 | 2.7435293197631836 | 500 | 0.5798230469226837
---- recombine_phase_a says ---
-Here's an analysis of promising narrative recombinations for a mid-budget original film, derived from the historical film database. I will focus on character archetypes and motif pairs, citing sample counts for every figure.
-
-### Promising Character Archetypes
-
-First, I examined the performance of individual character archetypes across all release eras.
-
-**Archetypes with High ROI:**
-
-*   The `authority_figure` archetype shows a high median Return on Investment (ROI) of **3.51x** (25 samples for ROI, 22 for interest). Its median interest percentile is 0.418. While its ROI is strong, the sample count is somewhat modest, suggesting it might be prone to more variability.
-*   The `caregiver` archetype has a median ROI of **2.97x** (151 samples for ROI, 142 for interest) and a median interest percentile of 0.453. This is a robust archetype with a good sample size.
-*   The `rebel` archetype also performs well with a median ROI of **2.91x** (115 samples for ROI, 109 for interest) and a median interest percentile of 0.477.
-
-**Archetypes with High Sustained Interest:**
-
-*   The `destroyer` archetype demonstrates the highest median interest percentile at **0.624** (19 samples for ROI, 18 for interest), with a median ROI of 2.44x. Its sample count is relatively low, so this finding should be interpreted with caution.
-*   The `outcast` archetype has a median interest percentile of **0.619** (72 samples for ROI, 64 for interest) and a median ROI of 2.29x. This archetype has a decent sample size supporting its sustained interest.
-*   The `reluctant_hero` archetype is a standout, appearing in the top performers for both ROI and interest. It has a median ROI of **2.74x** (521 samples for ROI, 500 for interest) and a median interest percentile of **0.580**. The very large sample size for `reluctant_hero` makes it a highly reliable and consistently performing archetype.
-
-Given its strong performance across both ROI and sustained interest, and its robust sample size, the **`reluctant_hero`** archetype is a highly promising candidate for further development.
-
-Let's now look into motif pairs.
 --- recombine_phase_a → run_query ---
 SELECT
     motif_a,
@@ -82,69 +42,109 @@ SELECT
     quantileMerge(0.5)(interest_pct_median) AS interest_median
 FROM mv_motif_pair_stats
 GROUP BY motif_a, motif_b
-HAVING n_roi >= 8 AND n_interest >= 8
+HAVING n_roi >= 8
 ORDER BY roi_median DESC
 LIMIT 5;
---- recombine_phase_a → run_query ---
-SELECT
-    motif_a,
-    motif_b,
-    countMerge(sample_count) AS n_roi,
-    quantileMerge(0.5)(roi_median) AS roi_median,
-    countMerge(interest_sample_count) AS n_interest,
-    quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_motif_pair_stats
-GROUP BY motif_a, motif_b
-HAVING n_roi >= 8 AND n_interest >= 8
-ORDER BY interest_median DESC
-LIMIT 5;
-    5 rows in 1220 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
+    5 rows in 1007 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
       hidden_conspiracy | loss_of_innocence | 13 | 5.6850433349609375 | 13 | 0.7413249015808105
       coming_of_age | doomed_ambition | 8 | 5.324791431427002 | 8 | 0.5852338969707489
       coming_of_age | moral_compromise | 28 | 5.235293626785278 | 28 | 0.47276532649993896
       found_family | obsessive_pursuit | 20 | 4.784842014312744 | 20 | 0.6367491185665131
       class_divide | unlikely_alliance | 8 | 4.78208327293396 | 8 | 0.5030864179134369
-    5 rows in 1220 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
-      rise_and_fall | sacrifice_for_others | 9 | 3.584268569946289 | 9 | 0.8934707641601562
-      doomed_ambition | isolation_and_madness | 15 | 1.6065032482147217 | 15 | 0.8212766051292419
-      coming_of_age | hidden_conspiracy | 9 | 2.4537036418914795 | 8 | 0.7839116752147675
-      loss_of_innocence | obsessive_pursuit | 22 | 1.8005298376083374 | 22 | 0.7652550041675568
-      corrupted_power | reluctant_hero | 10 | 1.2022040486335754 | 9 | 0.7634069323539734
+--- recombine_phase_a → run_query ---
+SELECT
+    archetype,
+    release_bucket,
+    countMerge(sample_count) AS n_roi,
+    quantileMerge(0.5)(roi_median) AS roi_median,
+    countMerge(interest_sample_count) AS n_interest,
+    quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_archetype_performance
+GROUP BY archetype, release_bucket
+HAVING n_roi >= 8
+ORDER BY roi_median DESC
+LIMIT 5;
+    5 rows in 1187 ms  [archetype, release_bucket, n_roi, roi_median, n_interest, interest_median]
+      authority_figure | 2000-2004 | 9 | 5.642496585845947 | 7 | 0.4020618498325348
+      caregiver | 1995-1999 | 26 | 4.1675989627838135 | 25 | 0.3433476388454437
+      caregiver | 1990-1994 | 19 | 4.045199394226074 | 19 | 0.5987654328346252
+      rebel | 2000-2004 | 26 | 3.576725721359253 | 24 | 0.45618556439876556
+      rebel | 1990-1994 | 17 | 3.5652174949645996 | 17 | 0.48765432834625244
 --- recombine_phase_a says ---
-### Promising Narrative Recombinations for a Mid-Budget Original Film
+Based on the analysis of the historical film database, here are three promising narrative recombinations for a mid-budget original film, along with a combination that the evidence does not strongly support:
 
-Based on the analysis of character archetypes and motif pairs, here are two candidate combinations with supporting figures and sample counts, alongside what the evidence does not strongly support.
+### Promising Narrative Recombinations
 
-#### Candidate 1: The `reluctant_hero` Archetype
-
-The `reluctant_hero` archetype consistently performs well across both financial return and sustained audience interest.
-
-*   **Median ROI**: **2.74x** (based on 521 films)
-*   **Median Interest Percentile**: **0.580** (based on 500 films with sufficient interest signal)
-
-This archetype offers a strong balance of profitability and enduring appeal, supported by a very large and reliable sample size. Its prevalence suggests a well-understood and engaging narrative pattern that resonates with audiences over time.
-
-#### Candidate 2: Motif Pair: `found_family` and `obsessive_pursuit`
-
-The combination of the `found_family` and `obsessive_pursuit` motifs demonstrates strong performance.
-
-*   **Median ROI**: **4.78x** (based on 20 films)
-*   **Median Interest Percentile**: **0.637** (based on 20 films with sufficient interest signal)
-
-This pair shows a significantly higher median ROI than the general `reluctant_hero` archetype, coupled with an even stronger sustained interest. The sample size of 20 films, while smaller than for `reluctant_hero`, is sufficient to indicate a notable trend. This combination suggests that stories where a "found family" is formed, often under the duress of an "obsessive pursuit," tend to be highly successful and maintain strong audience engagement.
-
-#### Candidate 3: Motif Pair: `hidden_conspiracy` and `loss_of_innocence`
-
-The motif pair of `hidden_conspiracy` and `loss_of_innocence` stands out for its exceptional financial performance and strong interest, despite a smaller sample size.
-
-*   **Median ROI**: **5.69x** (based on 13 films)
-*   **Median Interest Percentile**: **0.741** (based on 13 films with sufficient interest signal)
-
-This combination presents the highest median ROI observed among the motif pairs with sufficient samples, and a very high median interest percentile. While the sample size of 13 films is lower, the magnitude of the ROI and interest percentile makes this a compelling, albeit potentially riskier due to less data, narrative combination. It suggests that stories where characters uncover a "hidden conspiracy" and undergo a "loss of innocence" are highly captivating and lucrative.
-
+**1. Motif Pair: 'hidden_conspiracy' and 'loss_of_innocence'**
+This combination of narrative motifs has demonstrated exceptional financial performance. Films featuring both 'hidden_conspiracy' and 'loss_of_innocence' achieved a median Return on Investment (ROI) of **5.68**. This finding is supported by a sample of **13 films**, all of which also had sufficient interest signal (n_interest = 13), with a median interest cohort percentile of **0.74**. This suggests a potent blend that captures both commercial success and sustained audience attention.
+--- recombine_phase_a → run_query ---
+SELECT
+    motif_a,
+    motif_b,
+    countMerge(sample_count) AS n_roi,
+    quantileMerge(0.5)(roi_median) AS roi_median,
+    countMerge(interest_sample_count) AS n_interest,
+    quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_motif_pair_stats
+WHERE motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence'
+GROUP BY motif_a, motif_b
+HAVING n_roi >= 8;
+    1 rows in 1747 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
+      hidden_conspiracy | loss_of_innocence | 13 | 5.6850433349609375 | 13 | 0.7413249015808105
+--- recombine_phase_a says ---
+**2. Archetype and Era: 'authority_figure' in 2000-2004**
+While the 'authority_figure' archetype generally shows strong performance (overall median ROI of 3.51 with 25 samples), its profitability was particularly pronounced in the early 2000s. Films featuring an 'authority_figure' released between **2000 and 2004** demonstrated a median ROI of **5.64**. This specific combination is supported by **9 films**. The interest signal for this specific grouping was observed in 7 films, with a median interest cohort percentile of 0.40. While the ROI is very high, the interest sample count (7) is just below the threshold of 8, so the interest figure should be considered with this limitation in mind.
+--- recombine_phase_a → run_query ---
+SELECT
+    archetype,
+    release_bucket,
+    countMerge(sample_count) AS n_roi,
+    quantileMerge(0.5)(roi_median) AS roi_median,
+    countMerge(interest_sample_count) AS n_interest,
+    quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_archetype_performance
+WHERE archetype = 'authority_figure' AND release_bucket = '2000-2004'
+GROUP BY archetype, release_bucket
+HAVING n_roi >= 8;
+    1 rows in 982 ms  [archetype, release_bucket, n_roi, roi_median, n_interest, interest_median]
+      authority_figure | 2000-2004 | 9 | 5.642496585845947 | 7 | 0.4020618498325348
+--- recombine_phase_a says ---
+**3. Motif Pair: 'coming_of_age' and 'moral_compromise'**
+The combination of 'coming_of_age' and 'moral_compromise' offers a robust and historically successful narrative pairing. Films with these two motifs have shown a median ROI of **5.24**. This finding is supported by a solid sample size of **28 films**, all of which contributed to the interest calculation (n_interest = 28), with a median interest cohort percentile of **0.47**. This indicates a consistently well-performing combination that engages audiences both financially and in long-term relevance.
+--- recombine_phase_a → run_query ---
+SELECT
+    motif_a,
+    motif_b,
+    countMerge(sample_count) AS n_roi,
+    quantileMerge(0.5)(roi_median) AS roi_median,
+    countMerge(interest_sample_count) AS n_interest,
+    quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_motif_pair_stats
+WHERE motif_a = 'coming_of_age' AND motif_b = 'moral_compromise'
+GROUP BY motif_a, motif_b
+HAVING n_roi >= 8;
+    1 rows in 911 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
+      coming_of_age | moral_compromise | 28 | 5.235293626785278 | 28 | 0.47276532649993896
+--- recombine_phase_a says ---
 ### What the Evidence Does Not Strongly Support
 
-While exploring highly-performing motifs, the pair of `coming_of_age` and `doomed_ambition` showed a high median ROI of 5.32x. However, this finding is based on only **8 films** for both ROI and interest, which is the minimum threshold for reporting. Such a small sample size provides insufficient evidence to confidently recommend this combination for a mid-budget film, as the results could be highly sensitive to individual outliers. Therefore, despite its high nominal ROI, the data does not robustly support this as a reliable recombination.
+While the motif pair of **'coming_of_age' and 'doomed_ambition'** initially appeared promising with a high median ROI of **5.32**, this figure is derived from only **8 films** (n_roi = 8). While it meets the minimum sample size for reporting, this limited dataset means that any further narrowing or detailed analysis (e.g., by specific era or other film characteristics) would likely result in an insufficient sample size. Therefore, relying heavily on this combination for a new project, especially if further specific filtering is desired, carries a higher risk due to the thin historical data.
+--- recombine_phase_a → run_query ---
+SELECT
+    motif_a,
+    motif_b,
+    countMerge(sample_count) AS n_roi,
+    quantileMerge(0.5)(roi_median) AS roi_median,
+    countMerge(interest_sample_count) AS n_interest,
+    quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_motif_pair_stats
+WHERE motif_a = 'coming_of_age' AND motif_b = 'doomed_ambition'
+GROUP BY motif_a, motif_b
+HAVING n_roi >= 8;
+    1 rows in 921 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
+      coming_of_age | doomed_ambition | 8 | 5.324791431427002 | 8 | 0.5852338969707489
+--- recombine_phase_a says ---
+In summary, for a mid-budget original film, focusing on the motif pair of 'hidden_conspiracy' and 'loss_of_innocence', the archetype 'authority_figure' particularly in a 2000-2004 setting, or the motif pair of 'coming_of_age' and 'moral_compromise' offers the strongest historical evidence of both financial return and sustained audience engagement.
 
 === recombine_phase_b_grounded ===
 
@@ -152,235 +152,93 @@ While exploring highly-performing motifs, the pair of `coming_of_age` and `doome
 --- recombine_phase_b_wildcard says ---
 {
   "variant": "wildcard",
-  "title": "A Reckoning of Shadows",
-  "logline": "A former spy, living as an outcast, uncovers a hidden conspiracy only to realize her deepest wounds are the key to its unraveling.",
+  "title": "Cosmic Crossroads",
+  "logline": "A reluctant hero, burdened by the weight of a secret alien heritage, races against time to unite warring factions and prevent a cataclysmic cosmic collision, all while grappling with the consequences of revealing her true identity.",
   "motif_tags": [
-    "hidden_conspiracy",
-    "memory_and_truth",
+    "race_against_time",
     "identity_concealed",
-    "wrongful_accusation"
-  ],
-  "character_archetypes": [
-    "outcast",
-    "fallen_idol",
-    "witness",
-    "shadow_antagonist"
-  ],
-  "act_structure": "nonlinear_reveal",
-  "rationale": "The Phase A transcript did not show a clear-cut negative correlation for these combinations, but it also didn't provide strong supporting evidence. Specifically, 'outcast' performed well for interest (0.619 median interest percentile) but 'hidden_conspiracy' and 'loss_of_innocence' had high ROI but were flagged as having low sample sizes. 'identity_concealed', 'memory_and_truth', 'wrongful_accusation', 'fallen_idol', and 'witness' were not directly mentioned in the top performers, either individually or in pairs. The nonlinear_reveal structure is also not explicitly supported by data from the Phase A transcript. This proposal combines motifs and archetypes not highlighted for strong positive performance, with one motif pair ('hidden_conspiracy' and 'loss_of_innocence') noted for strong ROI but with a smaller sample size, to create a plausible film concept for the wildcard variant.",
-  "evidence": [
-    {
-      "claim": "The `outcast` archetype has a median interest percentile of 0.619.",
-      "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY interest_median DESC\nLIMIT 5;",
-      "sample_count": 64,
-      "source_view": "mv_archetype_performance",
-      "value": 0.618708461523056
-    },
-    {
-      "claim": "The motif pair `hidden_conspiracy` and `loss_of_innocence` shows a median ROI of 5.69x.",
-      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-      "sample_count": 13,
-      "source_view": "mv_motif_pair_stats",
-      "value": 5.6850433349609375
-    },
-    {
-      "claim": "The motif pair `hidden_conspiracy` and `loss_of_innocence` has a median interest percentile of 0.741.",
-      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-      "sample_count": 13,
-      "source_view": "mv_motif_pair_stats",
-      "value": 0.7413249015808105
-    }
-  ]
-}
-
-=== predict_analogue_query ===
---- recombine_phase_b_grounded says ---
-{
-  "variant": "grounded",
-  "title": "The Reluctant Hero's Conspiracy",
-  "logline": "A reluctant hero, burdened by a hidden conspiracy, must confront the loss of innocence to protect those he cares about.",
-  "motif_tags": [
-    "hidden_conspiracy",
-    "loss_of_innocence",
-    "sacrifice_for_others"
+    "unlikely_alliance",
+    "generational_conflict"
   ],
   "character_archetypes": [
     "reluctant_hero",
-    "mentor",
-    "shadow_antagonist"
+    "orphan",
+    "trickster"
   ],
   "act_structure": "hero_journey",
-  "rationale": "This treatment combines the highly successful 'reluctant_hero' archetype with the financially strong motif pair of 'hidden_conspiracy' and 'loss_of_innocence'. The 'reluctant_hero' consistently performs well in both ROI and sustained interest, providing a reliable foundation. The 'hidden_conspiracy' and 'loss_of_innocence' motif pair shows exceptional ROI and strong interest, suggesting a compelling narrative core. Adding 'sacrifice_for_others' as a third motif can enhance the emotional depth and stakes for the reluctant hero, aligning with the hero's journey structure. The 'mentor' and 'shadow_antagonist' archetypes naturally complement the 'reluctant_hero' and the 'hero_journey' structure, providing guidance and opposition within the conspiracy.",
+  "rationale": "I chose this combination because none of these motifs or archetypes individually, nor their direct pairings, showed particularly strong performance or were highlighted in the positive examples from the Phase A transcript. For instance, 'reluctant_hero' had a good ROI (2.74) but it was not among the top performers mentioned as 'exceptional'. The motifs 'race_against_time', 'identity_concealed', 'unlikely_alliance', and 'generational_conflict' were not mentioned in any of the top performing motif pairs. Similarly, 'orphan' and 'trickster' archetypes were not part of the top ROI archetypes.",
   "evidence": [
     {
-      "claim": "The 'reluctant_hero' archetype has a median ROI of 2.74x.",
-      "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
+      "claim": "Films featuring a 'reluctant_hero' have a median ROI of 2.74.",
+      "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
       "sample_count": 521,
       "source_view": "mv_archetype_performance",
       "value": 2.7435293197631836
-    },
-    {
-      "claim": "The 'reluctant_hero' archetype has a median interest percentile of 0.580.",
-      "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY interest_median DESC\nLIMIT 5;",
-      "sample_count": 500,
-      "source_view": "mv_archetype_performance",
-      "value": 0.5798230469226837
-    },
-    {
-      "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median ROI of 5.69x.",
-      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-      "sample_count": 13,
-      "source_view": "mv_motif_pair_stats",
-      "value": 5.6850433349609375
-    },
-    {
-      "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median interest percentile of 0.741.",
-      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-      "sample_count": 13,
-      "source_view": "mv_motif_pair_stats",
-      "value": 0.7413249015808105
     }
   ]
 }
-    ~~ recombine_b_grounded retry 1: attempt 1 of 3 rejected: vocabulary not present in Phase A trace: shadow_antagonist
+    ~~ recombine_b_wildcard retry 1: attempt 1 of 3 rejected: wildcard phase B output did not parse: 1 validation error for TreatmentProposal
+logline
+  String should have at most 200 characters [type=string_too_long, input_value='A reluctant hero, burden...ling her true identity.', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/string_too_long
 
-=== recombine_phase_b_grounded ===
---- predict_analogue_query → run_query ---
-SELECT motif_a, motif_b,
-       countMerge(sample_count) AS n_roi,
-       quantileMerge(0.5)(roi_median) AS roi_median,
-       countMerge(interest_sample_count) AS n_interest,
-       quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_motif_pair_stats
-WHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('memory_and_truth', 'identity_concealed', 'wrongful_accusation'))
-   OR (motif_a = 'memory_and_truth' AND motif_b IN ('identity_concealed', 'wrongful_accusation'))
-   OR (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')
-GROUP BY motif_a, motif_b
-HAVING n_roi >= 8
-ORDER BY roi_median DESC, n_roi DESC
-    4 rows in 1331 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
-      identity_concealed | wrongful_accusation | 24 | 2.7902899980545044 | 23 | 0.5154638886451721
-      hidden_conspiracy | wrongful_accusation | 22 | 2.62925922870636 | 20 | 0.44006939232349396
-      hidden_conspiracy | identity_concealed | 39 | 2.0607149600982666 | 38 | 0.559077799320221
-      hidden_conspiracy | memory_and_truth | 13 | 1.3427643775939941 | 13 | 0.7318611741065979
---- predict_analogue_query → run_query ---
-SELECT archetype,
-       countMerge(sample_count) AS n_roi,
-       quantileMerge(0.5)(roi_median) AS roi_median,
-       countMerge(interest_sample_count) AS n_interest,
-       quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_archetype_performance
-WHERE archetype IN ('outcast', 'fallen_idol', 'witness', 'shadow_antagonist')
-GROUP BY archetype
-HAVING n_roi >= 8
-ORDER BY roi_median DESC, n_roi DESC
-    4 rows in 1096 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
-      witness | 35 | 2.4229555130004883 | 29 | 0.3951890170574188
-      shadow_antagonist | 678 | 2.383464217185974 | 645 | 0.5532646179199219
-      outcast | 72 | 2.292385697364807 | 64 | 0.618708461523056
-      fallen_idol | 40 | 1.506366789340973 | 36 | 0.41647426784038544
+=== recombine_phase_b_wildcard ===
 --- recombine_phase_b_grounded says ---
 {
   "variant": "grounded",
-  "title": "The Reluctant Guardian",
-  "logline": "A reluctant hero, burdened by a hidden conspiracy, must protect a found family from an obsessive pursuit, forcing them to confront a loss of innocence.",
+  "title": "The Unveiling",
+  "logline": "A young protagonist uncovers a hidden conspiracy that forces them to confront a profound loss of innocence, leading to a dramatic transformation.",
   "motif_tags": [
     "hidden_conspiracy",
     "loss_of_innocence",
-    "found_family",
-    "obsessive_pursuit"
+    "coming_of_age",
+    "moral_compromise"
   ],
   "character_archetypes": [
-    "reluctant_hero",
     "authority_figure",
-    "outcast"
+    "rebel",
+    "reluctant_hero",
+    "mentor"
   ],
-  "act_structure": "hero_journey",
-  "rationale": "This treatment combines the highly reliable 'reluctant_hero' archetype with the financially successful and high-interest motif pairs of 'hidden_conspiracy' and 'loss_of_innocence', and 'found_family' and 'obsessive_pursuit'. The 'reluctant_hero' provides a strong foundation for both ROI and sustained interest, while the motif combinations offer compelling narrative drivers that have historically performed exceptionally well. The 'authority_figure' and 'outcast' archetypes are included to provide additional character dynamics and to leverage their strong individual performance in either ROI or interest.",
+  "act_structure": "classic_three_act",
+  "rationale": "This treatment combines the highly successful motif pair of 'hidden_conspiracy' and 'loss_of_innocence' with a strong 'coming_of_age' arc that includes 'moral_compromise', a combination also showing high ROI. The 'authority_figure' archetype, particularly strong in the 2000-2004 era, provides a compelling antagonist or guiding force, while 'rebel', 'reluctant_hero', and 'mentor' offer dynamic character relationships and development.",
   "evidence": [
     {
-      "claim": "The 'reluctant_hero' archetype has a median ROI of 2.74x.",
-      "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-      "sample_count": 521,
-      "source_view": "mv_archetype_performance",
-      "value": 2.7435293197631836
-    },
-    {
-      "claim": "The 'reluctant_hero' archetype has a median interest percentile of 0.580.",
-      "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY interest_median DESC\nLIMIT 5;",
-      "sample_count": 500,
-      "source_view": "mv_archetype_performance",
-      "value": 0.5798230469226837
-    },
-    {
-      "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median ROI of 5.69x.",
-      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
+      "claim": "Films featuring both 'hidden_conspiracy' and 'loss_of_innocence' achieved a median Return on Investment (ROI) of 5.68.",
+      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence'\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8;",
       "sample_count": 13,
       "source_view": "mv_motif_pair_stats",
       "value": 5.6850433349609375
     },
     {
-      "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median interest percentile of 0.741.",
-      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
+      "claim": "This motif pair also showed a median interest cohort percentile of 0.74.",
+      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence'\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8;",
       "sample_count": 13,
       "source_view": "mv_motif_pair_stats",
       "value": 0.7413249015808105
     },
     {
-      "claim": "The motif pair 'found_family' and 'obsessive_pursuit' has a median ROI of 4.78x.",
-      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-      "sample_count": 20,
-      "source_view": "mv_motif_pair_stats",
-      "value": 4.784842014312744
-    },
-    {
-      "claim": "The motif pair 'found_family' and 'obsessive_pursuit' has a median interest percentile of 0.637.",
-      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-      "sample_count": 20,
-      "source_view": "mv_motif_pair_stats",
-      "value": 0.6367491185665131
-    },
-    {
-      "claim": "The 'authority_figure' archetype has a median ROI of 3.51x.",
-      "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-      "sample_count": 25,
+      "claim": "Films featuring an 'authority_figure' released between 2000 and 2004 demonstrated a median ROI of 5.64.",
+      "sql_query": "SELECT\n    archetype,\n    release_bucket,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype = 'authority_figure' AND release_bucket = '2000-2004'\nGROUP BY archetype, release_bucket\nHAVING n_roi >= 8;",
+      "sample_count": 9,
       "source_view": "mv_archetype_performance",
-      "value": 3.5104405879974365
+      "value": 5.642496585845947
     },
     {
-      "claim": "The 'outcast' archetype has a median interest percentile of 0.619.",
-      "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY interest_median DESC\nLIMIT 5;",
-      "sample_count": 64,
-      "source_view": "mv_archetype_performance",
-      "value": 0.618708461523056
+      "claim": "The combination of 'coming_of_age' and 'moral_compromise' has shown a median ROI of 5.24.",
+      "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE motif_a = 'coming_of_age' AND motif_b = 'moral_compromise'\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8;",
+      "sample_count": 28,
+      "source_view": "mv_motif_pair_stats",
+      "value": 5.235293626785278
     }
   ]
 }
 
 === predict_analogue_query ===
---- predict_analogue_query → run_query ---
-SELECT count() AS n_roi,
-       quantile(0.5)(roi) AS roi_median,
-       quantile(0.75)(roi) AS roi_p75,
-       countIf(has_interest_signal) AS n_interest,
-       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median
-FROM films
-WHERE roi IS NOT NULL
-  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))
-  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))
-    1 rows in 1038 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
-      314 | 2.1816667318344116 | 4.016200125217438 | 295 | 0.4935622215270996
---- predict_analogue_query → run_query ---
-SELECT count() AS n_roi,
-       quantile(0.5)(roi) AS roi_median,
-       quantile(0.75)(roi) AS roi_p75,
-       countIf(has_interest_signal) AS n_interest,
-       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median
-FROM films
-WHERE roi IS NOT NULL
-  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))
-  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))
-  AND (budget_usd >= 20000000 AND budget_usd < 80000000)
+--- recombine_phase_b_wildcard says ---
+{"variant": "wildcard", "title": "Echoes of the Past", "logline": "A fallen idol and a double agent must work together to uncover a hidden conspiracy, navigating betrayals and forbidden love in their quest for truth and survival.", "motif_tags": ["forbidden_love", "betrayal_by_ally", "hidden_conspiracy", "survival"], "character_archetypes": ["fallen_idol", "double_agent", "witness"], "act_structure": "nonlinear_reveal", "rationale": "This wildcard proposal deliberately selects elements that did not appear prominently in the provided Phase A transcript's high-performing combinations, or were absent entirely. For instance, 'forbidden_love' and 'betrayal_by_ally' were not present in the top motif pairs by ROI. Similarly, 'fallen_idol' and 'double_agent' were not among the highest ROI archetypes or archetype-era combinations. The evidence section cites figures that argue against this premise or are simply not present in the given data, reflecting the wildcard nature of this proposal.", "evidence": []}
+
+=== predict_analogue_query ===
 --- predict_analogue_query → run_query ---
 SELECT motif_a, motif_b,
        countMerge(sample_count) AS n_roi,
@@ -388,28 +246,36 @@ SELECT motif_a, motif_b,
        countMerge(interest_sample_count) AS n_interest,
        quantileMerge(0.5)(interest_pct_median) AS interest_median
 FROM mv_motif_pair_stats
-WHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('loss_of_innocence', 'found_family', 'obsessive_pursuit'))
-   OR (motif_a = 'loss_of_innocence' AND motif_b IN ('found_family', 'obsessive_pursuit'))
-   OR (motif_a = 'found_family' AND motif_b = 'obsessive_pursuit')
+WHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR
+      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR
+      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR
+      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR
+      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR
+      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')
 GROUP BY motif_a, motif_b
 HAVING n_roi >= 8
 ORDER BY roi_median DESC, n_roi DESC
-    1 rows in 1047 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
-      138 | 2.013437032699585 | 3.4510045051574707 | 132 | 0.47582466900348663
-    4 rows in 1190 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
+    4 rows in 1217 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
       hidden_conspiracy | loss_of_innocence | 13 | 5.6850433349609375 | 13 | 0.7413249015808105
-      found_family | obsessive_pursuit | 20 | 4.784842014312744 | 20 | 0.6367491185665131
-      hidden_conspiracy | obsessive_pursuit | 60 | 2.5399502515792847 | 59 | 0.539432168006897
-      loss_of_innocence | obsessive_pursuit | 22 | 1.8005298376083374 | 22 | 0.7652550041675568
---- predict_analogue_query says ---
-Motif pair analysis:
-
-*   **Hidden Conspiracy** and **Loss of Innocence**: 13 films, median ROI 5.69, median interest 0.74.
-*   **Found Family** and **Obsessive Pursuit**: 20 films, median ROI 4.78, median interest 0.64.
-*   **Hidden Conspiracy** and **Obsessive Pursuit**: 60 films, median ROI 2.54, median interest 0.54.
-*   **Loss of Innocence** and **Obsessive Pursuit**: 22 films, median ROI 1.80, median interest 0.77.
-
-Next, let's examine the performance of the individual archetypes.
+      coming_of_age | moral_compromise | 28 | 5.235293626785278 | 28 | 0.47276532649993896
+      loss_of_innocence | moral_compromise | 64 | 2.2965506315231323 | 62 | 0.49995434284210205
+      hidden_conspiracy | moral_compromise | 56 | 1.8285104036331177 | 54 | 0.49069197475910187
+--- predict_analogue_query → run_query ---
+SELECT motif_a, motif_b,
+       countMerge(sample_count)       AS n_roi,
+       quantileMerge(0.5)(roi_median) AS roi_median,
+       countMerge(interest_sample_count) AS n_interest,
+       quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_motif_pair_stats
+WHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR
+      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR
+      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR
+      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR
+      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR
+      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')
+GROUP BY motif_a, motif_b
+HAVING n_roi >= 8
+ORDER BY roi_median DESC, n_roi DESC
 --- predict_analogue_query → run_query ---
 SELECT archetype,
        countMerge(sample_count) AS n_roi,
@@ -417,173 +283,217 @@ SELECT archetype,
        countMerge(interest_sample_count) AS n_interest,
        quantileMerge(0.5)(interest_pct_median) AS interest_median
 FROM mv_archetype_performance
-WHERE archetype IN ('reluctant_hero', 'authority_figure', 'outcast')
+WHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')
 GROUP BY archetype
 HAVING n_roi >= 8
 ORDER BY roi_median DESC, n_roi DESC
-    3 rows in 958 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
+    5 rows in 1058 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
+      betrayal_by_ally | survival | 44 | 2.427768349647522 | 43 | 0.4511041045188904
+      betrayal_by_ally | forbidden_love | 9 | 2.320007801055908 | 9 | 0.4432176649570465
+      hidden_conspiracy | survival | 44 | 2.2278666496276855 | 41 | 0.5031545758247375
+      betrayal_by_ally | hidden_conspiracy | 48 | 1.9851722717285156 | 45 | 0.4826498329639435
+      forbidden_love | survival | 8 | 1.7519743144512177 | 8 | 0.5318098366260529
+    4 rows in 1573 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
       authority_figure | 25 | 3.5104405879974365 | 22 | 0.4175257682800293
+      rebel | 115 | 2.9134228229522705 | 109 | 0.47659575939178467
       reluctant_hero | 521 | 2.7435293197631836 | 500 | 0.5798230469226837
-      outcast | 72 | 2.292385697364807 | 64 | 0.618708461523056
---- predict_analogue_query says ---
-Archetype analysis:
-
-*   **Authority Figure**: 25 films, median ROI 3.51, median interest 0.42.
-*   **Reluctant Hero**: 521 films, median ROI 2.74, median interest 0.58.
-*   **Outcast**: 72 films, median ROI 2.29, median interest 0.62.
-
-Next, I will find a broad film-level analogue set by combining these structural elements. This will be a set of films that feature at least one of the proposed motif tags and at least one of the proposed character archetypes.
+      mentor | 370 | 2.644397735595703 | 356 | 0.564094603061676
 --- predict_analogue_query → run_query ---
-SELECT count()                                    AS n_roi,
-       quantile(0.5)(roi)                         AS roi_median,
-       quantile(0.75)(roi)                        AS roi_p75,
-       countIf(has_interest_signal)               AS n_interest,
-       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)
-                                                  AS interest_median
-FROM films
-WHERE roi IS NOT NULL
-  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'found_family') OR has(motif_tags, 'obsessive_pursuit'))
-  AND (has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'outcast'))
+SELECT archetype,
+       countMerge(sample_count)       AS n_roi,
+       quantileMerge(0.5)(roi_median) AS roi_median,
+       countMerge(interest_sample_count) AS n_interest,
+       quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_archetype_performance
+WHERE archetype IN ('fallen_idol', 'double_agent', 'witness')
+GROUP BY archetype
 HAVING n_roi >= 8
-    1 rows in 1159 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
-      367 | 2.8517849445343018 | 4.622807264328003 | 347 | 0.5836910009384155
---- predict_analogue_query says ---
-Combined motif and archetype analysis (broad):
-
-For films matching at least one of the proposed motifs (`hidden_conspiracy`, `loss_of_innocence`, `found_family`, `obsessive_pursuit`) AND at least one of the proposed archetypes (`reluctant_hero`, `authority_figure`, `outcast`):
-
-*   **367 films** have ROI data.
-*   Median ROI: **2.85**
-*   75th percentile ROI: **4.62**
-*   **347 films** have interest data (above the measurement floor).
-*   Median interest: **0.58**
-
-This is a robust sample size. Now, I will refine this analogue set by applying the specified budget band: mid-budget films (budget_usd >= 20,000,000 AND budget_usd < 80,000,000).
+ORDER BY roi_median DESC, n_roi DESC
+    3 rows in 1066 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
+      witness | 35 | 2.4229555130004883 | 29 | 0.3951890170574188
+      double_agent | 51 | 2.31166672706604 | 48 | 0.5664168000221252
+      fallen_idol | 40 | 1.506366789340973 | 36 | 0.41647426784038544
+--- predict_analogue_query → run_query ---
+SELECT count() AS n_roi,
+       quantile(0.5)(roi) AS roi_median,
+       quantile(0.75)(roi) AS roi_p75,
+       countIf(has_interest_signal) AS n_interest,
+       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median
+FROM films
+WHERE roi IS NOT NULL
+  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))
+  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))
+HAVING n_roi >= 8
+    1 rows in 935 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
+      440 | 2.6016387939453125 | 4.65666651725769 | 416 | 0.5526209771633148
 --- predict_analogue_query → run_query ---
 SELECT count()                                    AS n_roi,
        quantile(0.5)(roi)                         AS roi_median,
        quantile(0.75)(roi)                        AS roi_p75,
        countIf(has_interest_signal)               AS n_interest,
        quantileIf(0.5)(interest_cohort_pct, has_interest_signal)
-                                                  AS interest_median
+                                                AS interest_median
 FROM films
 WHERE roi IS NOT NULL
-  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'found_family') OR has(motif_tags, 'obsessive_pursuit'))
-  AND (has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'outcast'))
+  AND (has(motif_tags, 'forbidden_love') OR
+       has(motif_tags, 'betrayal_by_ally') OR
+       has(motif_tags, 'hidden_conspiracy') OR
+       has(motif_tags, 'survival'))
+  AND (has(character_archetypes, 'fallen_idol') OR
+       has(character_archetypes, 'double_agent') OR
+       has(character_archetypes, 'witness'))
+    1 rows in 924 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
+      85 | 2.2417731285095215 | 3.7077224254608154 | 75 | 0.4763406813144684
+--- predict_analogue_query → run_query ---
+SELECT count() AS n_roi,
+       quantile(0.5)(roi) AS roi_median,
+       quantile(0.75)(roi) AS roi_p75,
+       countIf(has_interest_signal) AS n_interest,
+       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median
+FROM films
+WHERE roi IS NOT NULL
+  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))
+  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))
   AND (budget_usd >= 20000000 AND budget_usd < 80000000)
 HAVING n_roi >= 8
-    1 rows in 1013 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
-      159 | 2.8358702659606934 | 4.313200950622559 | 153 | 0.539432168006897
---- predict_analogue_query says ---
-Combined motif, archetype, and budget analysis (mid-budget):
-
-For films matching at least one of the proposed motifs (`hidden_conspiracy`, `loss_of_innocence`, `found_family`, `obsessive_pursuit`), at least one of the proposed archetypes (`reluctant_hero`, `authority_figure`, `outcast`), and with a **mid-range budget** (USD 20M to USD 80M):
-
-*   **159 films** have ROI data.
-*   Median ROI: **2.84**
-*   75th percentile ROI: **4.31**
-*   **153 films** have interest data (above the measurement floor).
-*   Median interest: **0.54**
-
-Given the robust sample size, I will now identify up to five named comparable titles from this mid-budget analogue set.
+    1 rows in 920 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
+      190 | 2.53168261051178 | 4.303846836090088 | 182 | 0.5104683637619019
+--- predict_analogue_query → run_query ---
+SELECT count()                                    AS n_roi,
+       quantile(0.5)(roi)                         AS roi_median,
+       quantile(0.75)(roi)                        AS roi_p75,
+       countIf(has_interest_signal)               AS n_interest,
+       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)
+                                                AS interest_median
+FROM films
+WHERE roi IS NOT NULL
+  AND (has(motif_tags, 'forbidden_love') OR
+       has(motif_tags, 'betrayal_by_ally') OR
+       has(motif_tags, 'hidden_conspiracy') OR
+       has(motif_tags, 'survival'))
+  AND (has(character_archetypes, 'fallen_idol') OR
+       has(character_archetypes, 'double_agent') OR
+       has(character_archetypes, 'witness'))
+  AND budget_usd >= 20000000 AND budget_usd < 80000000
+    1 rows in 927 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
+      36 | 2.2208865880966187 | 3.0806785821914673 | 35 | 0.44794952869415283
+--- predict_analogue_query → run_query ---
+SELECT title, release_year, roi
+FROM films
+WHERE roi IS NOT NULL
+  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))
+  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))
+  AND (budget_usd >= 20000000 AND budget_usd < 80000000)
+ORDER BY roi DESC
+LIMIT 5
+    5 rows in 913 ms  [title, release_year, roi]
+      The Lion King | 1994 | 21.522483825683594
+      Dances with Wolves | 1990 | 19.2822208404541
+      Aladdin | 1992 | 18.001792907714844
+      Schindler's List | 1993 | 12.885574340820312
+      Twilight | 2008 | 10.637837409973145
 --- predict_analogue_query → run_query ---
 SELECT title, roi
 FROM films
 WHERE roi IS NOT NULL
-  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'found_family') OR has(motif_tags, 'obsessive_pursuit'))
-  AND (has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'outcast'))
-  AND (budget_usd >= 20000000 AND budget_usd < 80000000)
+  AND (has(motif_tags, 'forbidden_love') OR
+       has(motif_tags, 'betrayal_by_ally') OR
+       has(motif_tags, 'hidden_conspiracy') OR
+       has(motif_tags, 'survival'))
+  AND (has(character_archetypes, 'fallen_idol') OR
+       has(character_archetypes, 'double_agent') OR
+       has(character_archetypes, 'witness'))
+  AND budget_usd >= 20000000 AND budget_usd < 80000000
 ORDER BY roi DESC
 LIMIT 5
---- predict_analogue_query says ---
-Here's an analysis of historical film performance based on your proposal's structural elements:
-
-### Motif Pair Performance
-
-The following motif pairs, when occurring together, have shown these historical performance trends:
-
-*   **'identity_concealed' AND 'wrongful_accusation'**:
-    *   Median ROI: 2.79x (N=24 films)
-    *   Median Interest (cohort percentile): 0.515 (N=23 films)
---- predict_analogue_query → run_query ---
-SELECT motif_a, motif_b,
-       countMerge(sample_count) AS n_roi,
-       quantileMerge(0.5)(roi_median) AS roi_median,
-       countMerge(interest_sample_count) AS n_interest,
-       quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_motif_pair_stats
-WHERE (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')
-GROUP BY motif_a, motif_b
-HAVING n_roi >= 8
-ORDER BY roi_median DESC, n_roi DESC
-    5 rows in 909 ms  [title, roi]
-      Dances with Wolves | 19.2822208404541
-      Beauty and the Beast | 16.99870491027832
+    5 rows in 913 ms  [title, roi]
       The Bodyguard | 16.440269470214844
-      Speed | 11.681604385375977
-      Silver Linings Playbook | 11.257736206054688
-    1 rows in 1260 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
-      identity_concealed | wrongful_accusation | 24 | 2.7902899980545044 | 23 | 0.5154638886451721
+      Mystic River | 6.263807773590088
+      Hitman | 4.165241241455078
+      Total Recall | 4.019997596740723
+      The Specialist | 3.7858352661132812
 --- predict_analogue_query says ---
-*   **'hidden_conspiracy' AND 'wrongful_accusation'**:
-    *   Median ROI: 2.63x (N=22 films)
-    *   Median Interest (cohort percentile): 0.440 (N=20 films)
---- predict_analogue_query → run_query ---
-SELECT motif_a, motif_b,
-       countMerge(sample_count) AS n_roi,
-       quantileMerge(0.5)(roi_median) AS roi_median,
-       countMerge(interest_sample_count) AS n_interest,
-       quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_motif_pair_stats
-WHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'wrongful_accusation')
-GROUP BY motif_a, motif_b
-HAVING n_roi >= 8
-ORDER BY roi_median DESC, n_roi DESC
-    1 rows in 1100 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
-      hidden_conspiracy | wrongful_accusation | 22 | 2.62925922870636 | 20 | 0.44006939232349396
---- predict_analogue_query says ---
-**Motif Pair Performance:**
+Here's an analysis of historical film analogues for "Echoes of the Past", based on your proposed structural elements:
 
-*   **Hidden Conspiracy** and **Loss of Innocence**: Based on 13 films, the median ROI was **5.69**, and the median interest cohort percentile was **0.74**.
-*   **Found Family** and **Obsessive Pursuit**: Based on 20 films, the median ROI was **4.78**, and the median interest cohort percentile was **0.64**.
-*   **Hidden Conspiracy** and **Obsessive Pursuit**: Based on 60 films (59 with interest signal), the median ROI was **2.54**, and the median interest cohort percentile was **0.54**.
-*   **Loss of Innocence** and **Obsessive Pursuit**: Based on 22 films, the median ROI was **1.80**, and the median interest cohort percentile was **0.77**.
+**Motif Pair Performance**
 
-**Archetype Performance:**
+The following motif combinations, present in your proposal, have historically performed as follows (median ROI and interest cohort percentile, with number of films in set):
 
-*   **Authority Figure**: Based on 25 films (22 with interest signal), the median ROI was **3.51**, and the median interest cohort percentile was **0.42**.
-*   **Reluctant Hero**: Based on 521 films (500 with interest signal), the median ROI was **2.74**, and the median interest cohort percentile was **0.58**.
-*   **Outcast**: Based on 72 films (64 with interest signal), the median ROI was **2.29**, and the median interest cohort percentile was **0.62**.
+*   **betrayal_by_ally, survival**:
+    *   Films: 44
+    *   Median ROI: 2.43
+    *   Films with interest signal: 43
+    *   Median Interest Cohort Percentile: 0.45
+*   **betrayal_by_ally, forbidden_love**:
+    *   Films: 9
+    *   Median ROI: 2.32
+    *   Films with interest signal: 9
+    *   Median Interest Cohort Percentile: 0.44
+*   **hidden_conspiracy, survival**:
+    *   Films: 44
+    *   Median ROI: 2.23
+    *   Films with interest signal: 41
+    *   Median Interest Cohort Percentile: 0.50
+*   **betrayal_by_ally, hidden_conspiracy**:
+    *   Films: 48
+    *   Median ROI: 1.99
+    *   Films with interest signal: 45
+    *   Median Interest Cohort Percentile: 0.48
+*   **forbidden_love, survival**:
+    *   Films: 8
+    *   Median ROI: 1.75
+    *   Films with interest signal: 8
+    *   Median Interest Cohort Percentile: 0.53
 
-**Film-Level Analogue Set (Broad):**
+**Archetype Performance**
 
-For films matching at least one of the proposed motifs (`hidden_conspiracy`, `loss_of_innocence`, `found_family`, `obsessive_pursuit`) AND at least one of the proposed archetypes (`reluctant_hero`, `authority_figure`, `outcast`):
+Individual character archetypes in your proposal have performed as follows (median ROI and interest cohort percentile, with number of films in set):
 
-*   **367 films** have ROI data. The median ROI was **2.85**, and the 75th percentile ROI was **4.62**.
-*   **347 films** had an interest signal. The median interest cohort percentile was **0.58**.
+*   **witness**:
+    *   Films: 35
+    *   Median ROI: 2.42
+    *   Films with interest signal: 29
+    *   Median Interest Cohort Percentile: 0.40
+*   **double_agent**:
+    *   Films: 51
+    *   Median ROI: 2.31
+    *   Films with interest signal: 48
+    *   Median Interest Cohort Percentile: 0.57
+*   **fallen_idol**:
+    *   Films: 40
+    *   Median ROI: 1.51
+    *   Films with interest signal: 36
+    *   Median Interest Cohort Percentile: 0.42
 
-**Film-Level Analogue Set (Mid-Budget):**
+**Overall Film Analogue Performance (Mid-Budget)**
 
-Narrowing the above set to films with a mid-range budget (USD 20,000,000 to USD 80,000,000):
+Films matching at least one of your proposed motifs (`forbidden_love`, `betrayal_by_ally`, `hidden_conspiracy`, `survival`) AND at least one of your proposed archetypes (`fallen_idol`, `double_agent`, `witness`), within the mid-budget range (USD 20M - 80M), have shown the following performance:
 
-*   **159 films** have ROI data. The median ROI was **2.84**, and the 75th percentile ROI was **4.31**.
-*   **153 films** had an interest signal. The median interest cohort percentile was **0.54**.
+*   **Total films in analogue set**: 36
+*   **Median ROI**: 2.22
+*   **75th percentile ROI (ROI P75)**: 3.08
+*   **Films with interest signal**: 35
+*   **Median Interest Cohort Percentile**: 0.45
 
-**Comparable Titles from Mid-Budget Set (Ordered by ROI):**
+**Comparable Titles**
 
-Here are five comparable titles that fit the motif, archetype, and mid-budget criteria, illustrating higher ROI examples:
+Five historical films from the mid-budget analogue set that exemplify this combination of elements, ordered by ROI:
 
-1.  *Dances with Wolves* (ROI: 19.28)
-2.  *Beauty and the Beast* (ROI: 17.00)
-3.  *The Bodyguard* (ROI: 16.44)
-4.  *Speed* (ROI: 11.68)
-5.  *Silver Linings Playbook* (ROI: 11.26)
+1.  **The Bodyguard** (ROI: 16.44)
+2.  **Mystic River** (ROI: 6.26)
+3.  **Hitman** (ROI: 4.17)
+4.  **Total Recall** (ROI: 4.02)
+5.  **The Specialist** (ROI: 3.79)
 
 === predict_analogue_converge ===
 --- predict_analogue_query says ---
-*   **'hidden_conspiracy' AND 'identity_concealed'**:
-    *   Median ROI: 2.06x (N=39 films)
-    *   Median Interest (cohort percentile): 0.559 (N=38 films)
+Here's an analysis of your proposal, "The Unveiling," based on historical analogues from films released between 1990 and 2014.
+
+### Motif Pair Performance
+
+Films sharing similar motif combinations have performed as follows:
+
+*   **`hidden_conspiracy` + `loss_of_innocence`**: This combination is found in 13 films, with a median ROI of 5.69 and a median interest percentile of 0.74.
 --- predict_analogue_query → run_query ---
 SELECT motif_a, motif_b,
        countMerge(sample_count) AS n_roi,
@@ -591,37 +501,30 @@ SELECT motif_a, motif_b,
        countMerge(interest_sample_count) AS n_interest,
        quantileMerge(0.5)(interest_pct_median) AS interest_median
 FROM mv_motif_pair_stats
-WHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'identity_concealed')
+WHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR
+      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR
+      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR
+      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR
+      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR
+      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')
 GROUP BY motif_a, motif_b
 HAVING n_roi >= 8
 ORDER BY roi_median DESC, n_roi DESC
-    1 rows in 1141 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
-      hidden_conspiracy | identity_concealed | 39 | 2.0607149600982666 | 38 | 0.559077799320221
+    4 rows in 1094 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
+      hidden_conspiracy | loss_of_innocence | 13 | 5.6850433349609375 | 13 | 0.7413249015808105
+      coming_of_age | moral_compromise | 28 | 5.235293626785278 | 28 | 0.47276532649993896
+      loss_of_innocence | moral_compromise | 64 | 2.2965506315231323 | 62 | 0.49995434284210205
+      hidden_conspiracy | moral_compromise | 56 | 1.8285104036331177 | 54 | 0.49069197475910187
 --- predict_analogue_query says ---
-*   **'hidden_conspiracy' AND 'memory_and_truth'**:
-    *   Median ROI: 1.34x (N=13 films)
-    *   Median Interest (cohort percentile): 0.732 (N=13 films)
---- predict_analogue_query → run_query ---
-SELECT motif_a, motif_b,
-       countMerge(sample_count) AS n_roi,
-       quantileMerge(0.5)(roi_median) AS roi_median,
-       countMerge(interest_sample_count) AS n_interest,
-       quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_motif_pair_stats
-WHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'memory_and_truth')
-GROUP BY motif_a, motif_b
-HAVING n_roi >= 8
-ORDER BY roi_median DESC, n_roi DESC
-    1 rows in 950 ms  [motif_a, motif_b, n_roi, roi_median, n_interest, interest_median]
-      hidden_conspiracy | memory_and_truth | 13 | 1.3427643775939941 | 13 | 0.7318611741065979
---- predict_analogue_query says ---
+*   **`coming_of_age` + `moral_compromise`**: This combination is found in 28 films, with a median ROI of 5.24 and a median interest percentile of 0.47.
+*   **`loss_of_innocence` + `moral_compromise`**: This combination is found in 64 films, with a median ROI of 2.30 and a median interest percentile of 0.50.
+*   **`hidden_conspiracy` + `moral_compromise`**: This combination is found in 56 films, with a median ROI of 1.83 and a median interest percentile of 0.49.
+
 ### Archetype Performance
 
-Historical films featuring the proposed character archetypes show the following performance:
+The historical performance of films featuring the proposed archetypes is:
 
-*   **'witness'**:
-    *   Median ROI: 2.42x (N=35 films)
-    *   Median Interest (cohort percentile): 0.395 (N=29 films)
+*   **`authority_figure`**: Found in 25 films, with a median ROI of 3.51 and a median interest percentile of 0.42.
 --- predict_analogue_query → run_query ---
 SELECT archetype,
        countMerge(sample_count) AS n_roi,
@@ -629,75 +532,29 @@ SELECT archetype,
        countMerge(interest_sample_count) AS n_interest,
        quantileMerge(0.5)(interest_pct_median) AS interest_median
 FROM mv_archetype_performance
-WHERE archetype = 'witness'
+WHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')
 GROUP BY archetype
 HAVING n_roi >= 8
 ORDER BY roi_median DESC, n_roi DESC
-    1 rows in 1053 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
-      witness | 35 | 2.4229555130004883 | 29 | 0.3951890170574188
+    4 rows in 927 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
+      authority_figure | 25 | 3.5104405879974365 | 22 | 0.4175257682800293
+      rebel | 115 | 2.9134228229522705 | 109 | 0.47659575939178467
+      reluctant_hero | 521 | 2.7435293197631836 | 500 | 0.5798230469226837
+      mentor | 370 | 2.644397735595703 | 356 | 0.564094603061676
 --- predict_analogue_query says ---
-*   **'shadow_antagonist'**:
-    *   Median ROI: 2.38x (N=678 films)
-    *   Median Interest (cohort percentile): 0.553 (N=645 films)
---- predict_analogue_query → run_query ---
-SELECT archetype,
-       countMerge(sample_count) AS n_roi,
-       quantileMerge(0.5)(roi_median) AS roi_median,
-       countMerge(interest_sample_count) AS n_interest,
-       quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_archetype_performance
-WHERE archetype = 'shadow_antagonist'
-GROUP BY archetype
-HAVING n_roi >= 8
-ORDER BY roi_median DESC, n_roi DESC
---- predict_analogue_converge says ---
-{"proposal_title": "Analogue Evidence for Proposed Film", "evidence": [{"claim": "The median ROI for films featuring 'hidden_conspiracy' and 'loss_of_innocence' motifs is 5.6850433349609375.", "query_index": 1, "sample_count": 13, "value": 5.6850433349609375, "metric": "commercial"}, {"claim": "The median attention for films featuring 'hidden_conspiracy' and 'loss_of_innocence' motifs is 0.7413249015808105.", "query_index": 1, "sample_count": 13, "value": 0.7413249015808105, "metric": "attention"}, {"claim": "The median ROI for films featuring 'found_family' and 'obsessive_pursuit' motifs is 4.784842014312744.", "query_index": 1, "sample_count": 20, "value": 4.784842014312744, "metric": "commercial"}, {"claim": "The median attention for films featuring 'found_family' and 'obsessive_pursuit' motifs is 0.6367491185665131.", "query_index": 1, "sample_count": 20, "value": 0.6367491185665131, "metric": "attention"}, {"claim": "The median ROI for films featuring 'hidden_conspiracy' and 'obsessive_pursuit' motifs is 2.5399502515792847.", "query_index": 1, "sample_count": 60, "value": 2.5399502515792847, "metric": "commercial"}, {"claim": "The median attention for films featuring 'hidden_conspiracy' and 'obsessive_pursuit' motifs is 0.539432168006897.", "query_index": 1, "sample_count": 59, "value": 0.539432168006897, "metric": "attention"}, {"claim": "The median ROI for films featuring 'loss_of_innocence' and 'obsessive_pursuit' motifs is 1.8005298376083374.", "query_index": 1, "sample_count": 22, "value": 1.8005298376083374, "metric": "commercial"}, {"claim": "The median attention for films featuring 'loss_of_innocence' and 'obsessive_pursuit' motifs is 0.7652550041675568.", "query_index": 1, "sample_count": 22, "value": 0.7652550041675568, "metric": "attention"}, {"claim": "The median ROI for films featuring the 'authority_figure' archetype is 3.5104405879974365.", "query_index": 2, "sample_count": 25, "value": 3.5104405879974365, "metric": "commercial"}, {"claim": "The median attention for films featuring the 'authority_figure' archetype is 0.4175257682800293.", "query_index": 2, "sample_count": 22, "value": 0.4175257682800293, "metric": "attention"}, {"claim": "The median ROI for films featuring the 'reluctant_hero' archetype is 2.7435293197631836.", "query_index": 2, "sample_count": 521, "value": 2.7435293197631836, "metric": "commercial"}, {"claim": "The median attention for films featuring the 'reluctant_hero' archetype is 0.5798230469226837.", "query_index": 2, "sample_count": 500, "value": 0.5798230469226837, "metric": "attention"}, {"claim": "The median ROI for films featuring the 'outcast' archetype is 2.292385697364807.", "query_index": 2, "sample_count": 72, "value": 2.292385697364807, "metric": "commercial"}, {"claim": "The median attention for films featuring the 'outcast' archetype is 0.618708461523056.", "query_index": 2, "sample_count": 64, "value": 0.618708461523056, "metric": "attention"}, {"claim": "The median ROI for films with the specified motif and archetype combinations is 2.8517849445343018.", "query_index": 3, "sample_count": 367, "value": 2.8517849445343018, "metric": "commercial"}, {"claim": "The 75th percentile ROI for films with the specified motif and archetype combinations is 4.622807264328003.", "query_index": 3, "sample_count": 367, "value": 4.622807264328003, "metric": "commercial"}, {"claim": "The median attention for films with the specified motif and archetype combinations is 0.5836910009384155.", "query_index": 3, "sample_count": 347, "value": 0.5836910009384155, "metric": "attention"}, {"claim": "The median ROI for films with the specified motif and archetype combinations and a budget between $20M and $80M is 2.8358702659606934.", "query_index": 4, "sample_count": 159, "value": 2.8358702659606934, "metric": "commercial"}, {"claim": "The 75th percentile ROI for films with the specified motif and archetype combinations and a budget between $20M and $80M is 4.313200950622559.", "query_index": 4, "sample_count": 159, "value": 4.313200950622559, "metric": "commercial"}, {"claim": "The median attention for films with the specified motif and archetype combinations and a budget between $20M and $80M is 0.539432168006897.", "query_index": 4, "sample_count": 153, "value": 0.539432168006897, "metric": "attention"}], "caveats": ["Interest figures reflect attention years after release, not initial reception.", "The dataset includes films released between 1990 and 2014."]}
-    1 rows in 1190 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
-      shadow_antagonist | 678 | 2.383464217185974 | 645 | 0.5532646179199219
---- predict_analogue_query says ---
-*   **'outcast'**:
-    *   Median ROI: 2.29x (N=72 films)
-    *   Median Interest (cohort percentile): 0.618 (N=64 films)
---- predict_analogue_query → run_query ---
-SELECT archetype,
-       countMerge(sample_count) AS n_roi,
-       quantileMerge(0.5)(roi_median) AS roi_median,
-       countMerge(interest_sample_count) AS n_interest,
-       quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_archetype_performance
-WHERE archetype = 'outcast'
-GROUP BY archetype
-HAVING n_roi >= 8
-ORDER BY roi_median DESC, n_roi DESC
-    1 rows in 1091 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
-      outcast | 72 | 2.292385697364807 | 64 | 0.618708461523056
---- predict_analogue_query says ---
-*   **'fallen_idol'**:
-    *   Median ROI: 1.51x (N=40 films)
-    *   Median Interest (cohort percentile): 0.416 (N=36 films)
---- predict_analogue_query → run_query ---
-SELECT archetype,
-       countMerge(sample_count) AS n_roi,
-       quantileMerge(0.5)(roi_median) AS roi_median,
-       countMerge(interest_sample_count) AS n_interest,
-       quantileMerge(0.5)(interest_pct_median) AS interest_median
-FROM mv_archetype_performance
-WHERE archetype = 'fallen_idol'
-GROUP BY archetype
-HAVING n_roi >= 8
-ORDER BY roi_median DESC, n_roi DESC
-    1 rows in 1254 ms  [archetype, n_roi, roi_median, n_interest, interest_median]
-      fallen_idol | 40 | 1.506366789340973 | 36 | 0.41647426784038544
---- predict_analogue_query says ---
+*   **`rebel`**: Found in 115 films, with a median ROI of 2.91 and a median interest percentile of 0.48.
+*   **`reluctant_hero`**: Found in 521 films, with a median ROI of 2.74 and a median interest percentile of 0.58.
+*   **`mentor`**: Found in 370 films, with a median ROI of 2.64 and a median interest percentile of 0.56.
+
 ### Film-Level Analogue Set
 
-A total of 138 historical films match at least one of your proposed motif tags (`hidden_conspiracy`, `memory_and_truth`, `identity_concealed`, `wrongful_accusation`) and at least one of your character archetypes (`outcast`, `fallen_idol`, `witness`, `shadow_antagonist`), while falling within the **mid-budget band** (USD 20M-80M).
+A total of **190 films** match at least one of your proposed motifs (`hidden_conspiracy`, `loss_of_innocence`, `coming_of_age`, `moral_compromise`) and at least one of your proposed archetypes (`authority_figure`, `rebel`, `reluctant_hero`, `mentor`), falling within the mid-budget range (USD 20,000,000 to USD 80,000,000).
 
-*   **Overall ROI**:
-    *   Median ROI: 2.01x (N=138 films)
-    *   75th percentile ROI: 3.45x (N=138 films)
-*   **Overall Interest**:
-    *   Median Interest (cohort percentile): 0.475 (N=132 films)
+For this analogue set:
+
+*   The median ROI is **2.53**.
+*   The 75th percentile ROI is **4.30**.
+*   Of these, **182 films** have sufficient interest signal. Their median interest cohort percentile is **0.51**.
 --- predict_analogue_query → run_query ---
 SELECT count() AS n_roi,
        quantile(0.5)(roi) AS roi_median,
@@ -706,203 +563,370 @@ SELECT count() AS n_roi,
        quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median
 FROM films
 WHERE roi IS NOT NULL
-  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))
-  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))
+  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))
+  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))
   AND (budget_usd >= 20000000 AND budget_usd < 80000000)
-    1 rows in 957 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
-      138 | 2.013437032699585 | 3.4510045051574707 | 132 | 0.47582466900348663
+HAVING n_roi >= 8
+    1 rows in 1285 ms  [n_roi, roi_median, roi_p75, n_interest, interest_median]
+      190 | 2.53168261051178 | 4.303846836090088 | 182 | 0.5104683637619019
 --- predict_analogue_query says ---
-All figures are based on a sufficient sample size (N >= 8). The prompt did not ask to filter by `release_bucket`, so that filter was not applied.
+This broad set had ample samples, so the budget filter was applied. Filtering on release bucket was not deemed necessary as the current sample size is robust.
 
-### Comparable Titles
+### Named Comparable Titles
 
-Here are five comparable titles from the analogue set, ordered by ROI:
+Here are five comparable titles from this specific analogue set, ordered by their Return on Investment (ROI):
+
+*   **"The Lion King"** (1994) - ROI: 21.52
+*   **"Dances with Wolves"** (1990) - ROI: 19.28
+*   **"Aladdin"** (1992) - ROI: 18.00
+*   **"Schindler's List"** (1993) - ROI: 12.89
+*   **"Twilight"** (2008) - ROI: 10.64
 --- predict_analogue_query → run_query ---
-SELECT title, roi, interest_cohort_pct
+SELECT title, release_year, roi
 FROM films
 WHERE roi IS NOT NULL
-  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))
-  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))
+  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))
+  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))
   AND (budget_usd >= 20000000 AND budget_usd < 80000000)
 ORDER BY roi DESC
 LIMIT 5
-    5 rows in 951 ms  [title, roi, interest_cohort_pct]
-      Aladdin | 18.001792907714844 | 0.9197530746459961
-      The Bodyguard | 16.440269470214844 | 0.7716049551963806
-      There's Something About Mary | 16.082609176635742 | 0.6394850015640259
-      Bridget Jones's Diary | 12.85666561126709 | 0.38831615447998047
-      Austin Powers: The Spy Who Shagged Me | 9.455056190490723 | 0.5557940006256104
+    5 rows in 954 ms  [title, release_year, roi]
+      The Lion King | 1994 | 21.522483825683594
+      Dances with Wolves | 1990 | 19.2822208404541
+      Aladdin | 1992 | 18.001792907714844
+      Schindler's List | 1993 | 12.885574340820312
+      Twilight | 2008 | 10.637837409973145
 --- predict_analogue_query says ---
-*   **Aladdin** (ROI: 18.00x, Interest: 0.92)
-*   **The Bodyguard** (ROI: 16.44x, Interest: 0.77)
-*   **There's Something About Mary** (ROI: 16.08x, Interest: 0.64)
-*   **Bridget Jones's Diary** (ROI: 12.86x, Interest: 0.39)
-*   **Austin Powers: The Spy Who Shagged Me** (ROI: 9.46x, Interest: 0.56)
+These titles illustrate the range of successful films sharing elements with your proposal within the specified budget.
 
 === predict_analogue_converge ===
 --- predict_analogue_converge says ---
 {
-  "proposal_title": "Film Performance Analysis",
+  "proposal_title": "Echoes of the Past",
   "evidence": [
     {
-      "claim": "The motif pair 'identity_concealed' and 'wrongful_accusation' has a median ROI of 2.79x.",
+      "claim": "The motif pair 'betrayal_by_ally' and 'survival' has a median ROI of 2.427768349647522 across 44 films.",
       "query_index": 1,
-      "sample_count": 24,
-      "value": 2.7902899980545044,
+      "sample_count": 44,
+      "value": 2.427768349647522,
       "metric": "commercial"
     },
     {
-      "claim": "The motif pair 'identity_concealed' and 'wrongful_accusation' has a median interest cohort percentile of 0.515.",
+      "claim": "The motif pair 'betrayal_by_ally' and 'survival' has a median interest cohort percentile of 0.4511041045188904 across 43 films.",
       "query_index": 1,
-      "sample_count": 23,
-      "value": 0.5154638886451721,
+      "sample_count": 43,
+      "value": 0.4511041045188904,
       "metric": "attention"
     },
     {
-      "claim": "The motif pair 'hidden_conspiracy' and 'wrongful_accusation' has a median ROI of 2.629x.",
+      "claim": "The motif pair 'betrayal_by_ally' and 'forbidden_love' has a median ROI of 2.320007801055908 across 9 films.",
       "query_index": 1,
-      "sample_count": 22,
-      "value": 2.62925922870636,
+      "sample_count": 9,
+      "value": 2.320007801055908,
       "metric": "commercial"
     },
     {
-      "claim": "The motif pair 'hidden_conspiracy' and 'wrongful_accusation' has a median interest cohort percentile of 0.440.",
+      "claim": "The motif pair 'betrayal_by_ally' and 'forbidden_love' has a median interest cohort percentile of 0.4432176649570465 across 9 films.",
       "query_index": 1,
-      "sample_count": 20,
-      "value": 0.44006939232349396,
+      "sample_count": 9,
+      "value": 0.4432176649570465,
       "metric": "attention"
     },
     {
-      "claim": "The motif pair 'hidden_conspiracy' and 'identity_concealed' has a median ROI of 2.06x.",
+      "claim": "The motif pair 'hidden_conspiracy' and 'survival' has a median ROI of 2.2278666496276855 across 44 films.",
       "query_index": 1,
-      "sample_count": 39,
-      "value": 2.0607149600982666,
+      "sample_count": 44,
+      "value": 2.2278666496276855,
       "metric": "commercial"
     },
     {
-      "claim": "The motif pair 'hidden_conspiracy' and 'identity_concealed' has a median interest cohort percentile of 0.559.",
+      "claim": "The motif pair 'hidden_conspiracy' and 'survival' has a median interest cohort percentile of 0.5031545758247375 across 41 films.",
       "query_index": 1,
-      "sample_count": 38,
-      "value": 0.559077799320221,
+      "sample_count": 41,
+      "value": 0.5031545758247375,
       "metric": "attention"
     },
     {
-      "claim": "The motif pair 'hidden_conspiracy' and 'memory_and_truth' has a median ROI of 1.34x.",
+      "claim": "The motif pair 'betrayal_by_ally' and 'hidden_conspiracy' has a median ROI of 1.9851722717285156 across 48 films.",
       "query_index": 1,
-      "sample_count": 13,
-      "value": 1.3427643775939941,
+      "sample_count": 48,
+      "value": 1.9851722717285156,
       "metric": "commercial"
     },
     {
-      "claim": "The motif pair 'hidden_conspiracy' and 'memory_and_truth' has a median interest cohort percentile of 0.732.",
+      "claim": "The motif pair 'betrayal_by_ally' and 'hidden_conspiracy' has a median interest cohort percentile of 0.4826498329639435 across 45 films.",
       "query_index": 1,
-      "sample_count": 13,
-      "value": 0.7318611741065979,
+      "sample_count": 45,
+      "value": 0.4826498329639435,
       "metric": "attention"
     },
     {
-      "claim": "The 'witness' archetype has a median ROI of 2.42x.",
+      "claim": "The motif pair 'forbidden_love' and 'survival' has a median ROI of 1.7519743144512177 across 8 films.",
+      "query_index": 1,
+      "sample_count": 8,
+      "value": 1.7519743144512177,
+      "metric": "commercial"
+    },
+    {
+      "claim": "The motif pair 'forbidden_love' and 'survival' has a median interest cohort percentile of 0.5318098366260529 across 8 films.",
+      "query_index": 1,
+      "sample_count": 8,
+      "value": 0.5318098366260529,
+      "metric": "attention"
+    },
+    {
+      "claim": "The 'witness' archetype has a median ROI of 2.4229555130004883 across 35 films.",
       "query_index": 2,
       "sample_count": 35,
       "value": 2.4229555130004883,
       "metric": "commercial"
     },
     {
-      "claim": "The 'witness' archetype has a median interest cohort percentile of 0.395.",
+      "claim": "The 'witness' archetype has a median interest cohort percentile of 0.3951890170574188 across 29 films.",
       "query_index": 2,
       "sample_count": 29,
       "value": 0.3951890170574188,
       "metric": "attention"
     },
     {
-      "claim": "The 'shadow_antagonist' archetype has a median ROI of 2.38x.",
+      "claim": "The 'double_agent' archetype has a median ROI of 2.31166672706604 across 51 films.",
       "query_index": 2,
-      "sample_count": 678,
-      "value": 2.383464217185974,
+      "sample_count": 51,
+      "value": 2.31166672706604,
       "metric": "commercial"
     },
     {
-      "claim": "The 'shadow_antagonist' archetype has a median interest cohort percentile of 0.553.",
+      "claim": "The 'double_agent' archetype has a median interest cohort percentile of 0.5664168000221252 across 48 films.",
       "query_index": 2,
-      "sample_count": 645,
-      "value": 0.5532646179199219,
+      "sample_count": 48,
+      "value": 0.5664168000221252,
       "metric": "attention"
     },
     {
-      "claim": "The 'outcast' archetype has a median ROI of 2.29x.",
-      "query_index": 2,
-      "sample_count": 72,
-      "value": 2.292385697364807,
-      "metric": "commercial"
-    },
-    {
-      "claim": "The 'outcast' archetype has a median interest cohort percentile of 0.618.",
-      "query_index": 2,
-      "sample_count": 64,
-      "value": 0.618708461523056,
-      "metric": "attention"
-    },
-    {
-      "claim": "The 'fallen_idol' archetype has a median ROI of 1.506x.",
+      "claim": "The 'fallen_idol' archetype has a median ROI of 1.506366789340973 across 40 films.",
       "query_index": 2,
       "sample_count": 40,
       "value": 1.506366789340973,
       "metric": "commercial"
     },
     {
-      "claim": "The 'fallen_idol' archetype has a median interest cohort percentile of 0.416.",
+      "claim": "The 'fallen_idol' archetype has a median interest cohort percentile of 0.41647426784038544 across 36 films.",
       "query_index": 2,
       "sample_count": 36,
       "value": 0.41647426784038544,
       "metric": "attention"
     },
     {
-      "claim": "The overall median ROI for films matching the motif and archetype criteria is 2.18x.",
+      "claim": "Films combining the proposed motifs and archetypes have a median ROI of 2.2417731285095215 across 85 films.",
       "query_index": 3,
-      "sample_count": 314,
-      "value": 2.1816667318344116,
+      "sample_count": 85,
+      "value": 2.2417731285095215,
       "metric": "commercial"
     },
     {
-      "claim": "The 75th percentile ROI for films matching the motif and archetype criteria is 4.016x.",
+      "claim": "Films combining the proposed motifs and archetypes have a 75th percentile ROI of 3.7077224254608154 across 85 films.",
       "query_index": 3,
-      "sample_count": 314,
-      "value": 4.016200125217438,
+      "sample_count": 85,
+      "value": 3.7077224254608154,
       "metric": "commercial"
     },
     {
-      "claim": "The overall median interest cohort percentile for films matching the motif and archetype criteria is 0.493.",
+      "claim": "Films combining the proposed motifs and archetypes have a median interest cohort percentile of 0.4763406813144684 across 75 films.",
       "query_index": 3,
-      "sample_count": 295,
-      "value": 0.4935622215270996,
+      "sample_count": 75,
+      "value": 0.4763406813144684,
       "metric": "attention"
     },
     {
-      "claim": "The overall median ROI for films matching the motif and archetype criteria with a budget between $20M and $80M is 2.01x.",
+      "claim": "Films combining the proposed motifs and archetypes with a budget between $20M and $80M have a median ROI of 2.2208865880966187 across 36 films.",
       "query_index": 4,
-      "sample_count": 138,
-      "value": 2.013437032699585,
+      "sample_count": 36,
+      "value": 2.2208865880966187,
       "metric": "commercial"
     },
     {
-      "claim": "The 75th percentile ROI for films matching the motif and archetype criteria with a budget between $20M and $80M is 3.45x.",
+      "claim": "Films combining the proposed motifs and archetypes with a budget between $20M and $80M have a 75th percentile ROI of 3.0806785821914673 across 36 films.",
       "query_index": 4,
-      "sample_count": 138,
-      "value": 3.4510045051574707,
+      "sample_count": 36,
+      "value": 3.0806785821914673,
       "metric": "commercial"
     },
     {
-      "claim": "The overall median interest cohort percentile for films matching the motif and archetype criteria with a budget between $20M and $80M is 0.475.",
+      "claim": "Films combining the proposed motifs and archetypes with a budget between $20M and $80M have a median interest cohort percentile of 0.44794952869415283 across 35 films.",
       "query_index": 4,
-      "sample_count": 132,
-      "value": 0.47582466900348663,
+      "sample_count": 35,
+      "value": 0.44794952869415283,
       "metric": "attention"
     }
   ],
   "caveats": [
-    "Interest figures are based on Wikipedia pageview data from 2015 onwards, measuring sustained interest years after release, not initial box office buzz.",
-    "The analysis of motif pairs and archetypes does not include a release year filter, so the figures represent performance across the entire 1990-2014 dataset.",
-    "The comparable titles are drawn from films released between 1990 and 2014."
+    "The analysis is based on films released between 1990 and 2014.",
+    "Interest figures reflect sustained attention years after release, not initial box office or critical reception.",
+    "Some analyses are specific to films with a budget between USD 20M and USD 80M."
+  ]
+}
+--- predict_analogue_converge says ---
+{
+  "proposal_title": "The Unveiling",
+  "evidence": [
+    {
+      "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median ROI of 5.685.",
+      "query_index": 1,
+      "sample_count": 13,
+      "value": 5.6850433349609375,
+      "metric": "commercial"
+    },
+    {
+      "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median interest cohort percentile of 0.741.",
+      "query_index": 1,
+      "sample_count": 13,
+      "value": 0.7413249015808105,
+      "metric": "attention"
+    },
+    {
+      "claim": "The motif pair 'coming_of_age' and 'moral_compromise' has a median ROI of 5.235.",
+      "query_index": 1,
+      "sample_count": 28,
+      "value": 5.235293626785278,
+      "metric": "commercial"
+    },
+    {
+      "claim": "The motif pair 'coming_of_age' and 'moral_compromise' has a median interest cohort percentile of 0.473.",
+      "query_index": 1,
+      "sample_count": 28,
+      "value": 0.47276532649993896,
+      "metric": "attention"
+    },
+    {
+      "claim": "The motif pair 'loss_of_innocence' and 'moral_compromise' has a median ROI of 2.297.",
+      "query_index": 1,
+      "sample_count": 64,
+      "value": 2.2965506315231323,
+      "metric": "commercial"
+    },
+    {
+      "claim": "The motif pair 'loss_of_innocence' and 'moral_compromise' has a median interest cohort percentile of 0.500.",
+      "query_index": 1,
+      "sample_count": 62,
+      "value": 0.49995434284210205,
+      "metric": "attention"
+    },
+    {
+      "claim": "The motif pair 'hidden_conspiracy' and 'moral_compromise' has a median ROI of 1.829.",
+      "query_index": 1,
+      "sample_count": 56,
+      "value": 1.8285104036331177,
+      "metric": "commercial"
+    },
+    {
+      "claim": "The motif pair 'hidden_conspiracy' and 'moral_compromise' has a median interest cohort percentile of 0.491.",
+      "query_index": 1,
+      "sample_count": 54,
+      "value": 0.49069197475910187,
+      "metric": "attention"
+    },
+    {
+      "claim": "Films featuring the 'authority_figure' archetype have a median ROI of 3.510.",
+      "query_index": 2,
+      "sample_count": 25,
+      "value": 3.5104405879974365,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films featuring the 'authority_figure' archetype have a median interest cohort percentile of 0.418.",
+      "query_index": 2,
+      "sample_count": 22,
+      "value": 0.4175257682800293,
+      "metric": "attention"
+    },
+    {
+      "claim": "Films featuring the 'rebel' archetype have a median ROI of 2.913.",
+      "query_index": 2,
+      "sample_count": 115,
+      "value": 2.9134228229522705,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films featuring the 'rebel' archetype have a median interest cohort percentile of 0.477.",
+      "query_index": 2,
+      "sample_count": 109,
+      "value": 0.47659575939178467,
+      "metric": "attention"
+    },
+    {
+      "claim": "Films featuring the 'reluctant_hero' archetype have a median ROI of 2.744.",
+      "query_index": 2,
+      "sample_count": 521,
+      "value": 2.7435293197631836,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films featuring the 'reluctant_hero' archetype have a median interest cohort percentile of 0.580.",
+      "query_index": 2,
+      "sample_count": 500,
+      "value": 0.5798230469226837,
+      "metric": "attention"
+    },
+    {
+      "claim": "Films featuring the 'mentor' archetype have a median ROI of 2.644.",
+      "query_index": 2,
+      "sample_count": 370,
+      "value": 2.644397735595703,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films featuring the 'mentor' archetype have a median interest cohort percentile of 0.564.",
+      "query_index": 2,
+      "sample_count": 356,
+      "value": 0.564094603061676,
+      "metric": "attention"
+    },
+    {
+      "claim": "Films matching the proposed motifs and archetypes have a median ROI of 2.602.",
+      "query_index": 3,
+      "sample_count": 440,
+      "value": 2.6016387939453125,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films matching the proposed motifs and archetypes have a 75th percentile ROI of 4.657.",
+      "query_index": 3,
+      "sample_count": 440,
+      "value": 4.65666651725769,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films matching the proposed motifs and archetypes have a median interest cohort percentile of 0.553.",
+      "query_index": 3,
+      "sample_count": 416,
+      "value": 0.5526209771633148,
+      "metric": "attention"
+    },
+    {
+      "claim": "Films matching the proposed motifs and archetypes within the USD 20M-80M budget range have a median ROI of 2.532.",
+      "query_index": 4,
+      "sample_count": 190,
+      "value": 2.53168261051178,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films matching the proposed motifs and archetypes within the USD 20M-80M budget range have a 75th percentile ROI of 4.304.",
+      "query_index": 4,
+      "sample_count": 190,
+      "value": 4.303846836090088,
+      "metric": "commercial"
+    },
+    {
+      "claim": "Films matching the proposed motifs and archetypes within the USD 20M-80M budget range have a median interest cohort percentile of 0.510.",
+      "query_index": 4,
+      "sample_count": 182,
+      "value": 0.5104683637619019,
+      "metric": "attention"
+    }
+  ],
+  "caveats": [
+    "The interest figures are measured years after release, reflecting sustained interest rather than opening reaction.",
+    "The dataset is limited to films released between 1990 and 2014."
   ]
 }
 
@@ -912,39 +936,40 @@ LIMIT 5
 
 === Root orchestration DoD ===
   [PASS] warm-up 全部成功: 3/3 通過
-  [PASS] Phase A 自主查詢 ClickHouse: 4 次 tool call
+  [PASS] Phase A 自主查詢 ClickHouse: 7 次 tool call
   [PASS] Phase A handoff 包含 grounded proposal 必需的 evidence surface: 已查到 ['mv_archetype_performance', 'mv_motif_pair_stats']
   [PASS] 要求的 2 個方案都有結果: ['grounded', 'wildcard']
   [PASS] 每個方案都產出 TreatmentProposal: grounded: ok; wildcard: ok
   [PASS] 沒有 grounding / wildcard 驗證錯誤: 無
   [PASS] 每個方案都有 PredictionScore: 2/2
-  [PASS] 每個 composite 都可由寫出的 JSON 內 evidence 重算: grounded=57.56905937194824; wildcard=48.23562169075012
-  [PASS] evidence 過 8 樣本門檻，否則走 insufficient_evidence: grounded: 20 筆 (high); wildcard: 22 筆 (high)
-  [PASS] 每個 tool_call 事件都帶 SQL 原文: 23/23
+  [PASS] 每個 composite 都可由寫出的 JSON 內 evidence 重算: grounded=54.1501669883728; wildcard=45.869534850120544
+  [PASS] evidence 過 8 樣本門檻，否則走 insufficient_evidence: grounded: 22 筆 (high); wildcard: 22 筆 (high)
+  [PASS] 每個 tool_call 事件都帶 SQL 原文: 21/21
   [PASS] 結構化事件流包含 SSE 需要的所有型別: ['agent_output', 'agent_retry', 'agent_start', 'awaiting_approval', 'done', 'tool_call', 'tool_result']
   [PASS] 護欄攔截沒有讓整條流程失敗: 攔下 0 個查詢、SQL 錯誤 0 次
+  [PASS] stage timings記錄到真實的 ClickHouse 耗時: 29.5s across 21 queries
   [PASS] run 狀態機停在核准閘門（agent 不等待點擊）: awaiting_approval
 
 === stage timings ===
   stage                              variant      sec calls   db_ms
-  recombine_a                        -           26.6     4       0
-  recombine_b_grounded_1             grounded    12.3     0       0
-  predict_query_grounded             -           29.5     5       0
-  predict_converge_grounded          grounded    10.5     0       0
-  recombine_b_wildcard_0             wildcard     7.8     0       0
-  predict_query_wildcard             -           69.9    14       0
-  predict_converge_wildcard          wildcard    11.2     0       0
+  recombine_a                        -           50.0     7   14816
+  recombine_b_grounded_0             grounded     8.2     0       0
+  predict_query_grounded             grounded    44.4     9    9817
+  predict_converge_grounded          grounded    24.0     0       0
+  recombine_b_wildcard_1             wildcard     4.2     0       0
+  predict_query_wildcard             wildcard    26.2     5    4888
+  predict_converge_wildcard          wildcard    22.4     0       0
                                                ------
-  sum of stages (serial equivalent)             167.8
-  wall clock                                    115.5
-  of which ClickHouse                             0.0  (0%)
-  saved by running variants together             52.3
+  sum of stages (serial equivalent)             179.4
+  wall clock                                    126.7
+  of which ClickHouse                            29.5  (23%)
+  saved by running variants together             52.7
 
-tool calls: 23  sql errors: 0  guardrail blocks: 0  elapsed: 115.5s
-  grounded  'The Reluctant Guardian' composite=57.56905937194824 (high, 20 evidence)
-  wildcard  'A Reckoning of Shadows' composite=48.23562169075012 (high, 22 evidence)
+tool calls: 21  sql errors: 0  guardrail blocks: 0  elapsed: 126.7s
+  grounded  'The Unveiling' composite=54.1501669883728 (high, 22 evidence)
+  wildcard  'Echoes of the Past' composite=45.869534850120544 (high, 22 evidence)
 
 result:  /Users/kahochow/startup/greenlight-agent/docs/m2-greenlight-run.json
-events:  /Users/kahochow/startup/greenlight-agent/docs/m2-greenlight-events.jsonl  (80 events)
+events:  /Users/kahochow/startup/greenlight-agent/docs/m2-greenlight-events.jsonl  (69 events)
 
 result: PASS -- 一次執行輸出雙方案 JSON 與完整 tool call trace。

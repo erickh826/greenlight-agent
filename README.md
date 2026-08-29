@@ -142,10 +142,12 @@ gcloud run deploy greenlight \
 ```
 
 `--timeout=900` is about the SSE stream, not about slow requests. A full run
-measured 335 seconds on Cloud Run, and at the specified 300 the connection was
-cut before `media_ready` -- the browser recovers, because `EventSource`
-reconnects and the bus replays history to a new subscriber, but the primary path
-should not depend on the backstop.
+measured 335 seconds when this was first deployed, and at the specified 300 the
+connection was cut before `media_ready` -- the browser recovers, because
+`EventSource` reconnects and the bus replays history to a new subscriber, but
+the primary path should not depend on the backstop. A run is now about **168
+seconds** (roughly 115 to the two scored proposals, the rest to the storyboard),
+so 900 is headroom rather than necessity, and is kept as headroom.
 
 `--min-instances=1 --max-instances=1` is not a cost setting. `RunStore` and
 `InProcessEventBus` live in one process's memory, so a second instance would

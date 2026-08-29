@@ -258,6 +258,10 @@ async def main() -> int:
              "護欄攔截沒有讓整條流程失敗",
              f"攔下 {published.guardrail_blocks} 個查詢、"
              f"SQL 錯誤 {published.sql_errors} 次"),
+            (sum(s.db_ms for s in published.stages) > 0,
+             "stage timings記錄到真實的 ClickHouse 耗時",
+             f"{sum(s.db_ms for s in published.stages) / 1000:.1f}s across "
+             f"{sum(s.tool_calls for s in published.stages)} queries"),
             (run.state is RunState.AWAITING_APPROVAL,
              "run 狀態機停在核准閘門（agent 不等待點擊）",
              run.state.value),

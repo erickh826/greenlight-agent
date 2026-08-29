@@ -1,253 +1,242 @@
 {
-  "run_id": "e34b480b0892",
+  "run_id": "0cb51ef5e984",
   "prompt": "Find promising narrative recombinations for a mid-budget original film. Use the database yourself: start broad, cite sample counts, and do not invent columns or vocabulary terms.",
   "model": "gemini-2.5-flash",
-  "started_at": 1788027988.9324532,
-  "finished_at": 1788028104.400192,
+  "started_at": 1788030341.679729,
+  "finished_at": 1788030468.349083,
   "outcomes": [
     {
       "variant": "grounded",
       "proposal": {
         "variant": "grounded",
-        "title": "The Reluctant Guardian",
-        "logline": "A reluctant hero, burdened by a hidden conspiracy, must protect a found family from an obsessive pursuit, forcing them to confront a loss of innocence.",
+        "title": "The Unveiling",
+        "logline": "A young protagonist uncovers a hidden conspiracy that forces them to confront a profound loss of innocence, leading to a dramatic transformation.",
         "motif_tags": [
           "hidden_conspiracy",
           "loss_of_innocence",
-          "found_family",
-          "obsessive_pursuit"
+          "coming_of_age",
+          "moral_compromise"
         ],
         "character_archetypes": [
-          "reluctant_hero",
           "authority_figure",
-          "outcast"
+          "rebel",
+          "reluctant_hero",
+          "mentor"
         ],
-        "act_structure": "hero_journey",
-        "rationale": "This treatment combines the highly reliable 'reluctant_hero' archetype with the financially successful and high-interest motif pairs of 'hidden_conspiracy' and 'loss_of_innocence', and 'found_family' and 'obsessive_pursuit'. The 'reluctant_hero' provides a strong foundation for both ROI and sustained interest, while the motif combinations offer compelling narrative drivers that have historically performed exceptionally well. The 'authority_figure' and 'outcast' archetypes are included to provide additional character dynamics and to leverage their strong individual performance in either ROI or interest.",
+        "act_structure": "classic_three_act",
+        "rationale": "This treatment combines the highly successful motif pair of 'hidden_conspiracy' and 'loss_of_innocence' with a strong 'coming_of_age' arc that includes 'moral_compromise', a combination also showing high ROI. The 'authority_figure' archetype, particularly strong in the 2000-2004 era, provides a compelling antagonist or guiding force, while 'rebel', 'reluctant_hero', and 'mentor' offer dynamic character relationships and development.",
         "evidence": [
           {
-            "claim": "The 'reluctant_hero' archetype has a median ROI of 2.74x.",
-            "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-            "sample_count": 521,
-            "source_view": "mv_archetype_performance",
-            "value": 2.7435293197631836
-          },
-          {
-            "claim": "The 'reluctant_hero' archetype has a median interest percentile of 0.580.",
-            "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY interest_median DESC\nLIMIT 5;",
-            "sample_count": 500,
-            "source_view": "mv_archetype_performance",
-            "value": 0.5798230469226837
-          },
-          {
-            "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median ROI of 5.69x.",
-            "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
+            "claim": "Films featuring both 'hidden_conspiracy' and 'loss_of_innocence' achieved a median Return on Investment (ROI) of 5.68.",
+            "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence'\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8;",
             "sample_count": 13,
             "source_view": "mv_motif_pair_stats",
             "value": 5.6850433349609375
           },
           {
-            "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median interest percentile of 0.741.",
-            "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
+            "claim": "This motif pair also showed a median interest cohort percentile of 0.74.",
+            "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence'\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8;",
             "sample_count": 13,
             "source_view": "mv_motif_pair_stats",
             "value": 0.7413249015808105
           },
           {
-            "claim": "The motif pair 'found_family' and 'obsessive_pursuit' has a median ROI of 4.78x.",
-            "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-            "sample_count": 20,
-            "source_view": "mv_motif_pair_stats",
-            "value": 4.784842014312744
-          },
-          {
-            "claim": "The motif pair 'found_family' and 'obsessive_pursuit' has a median interest percentile of 0.637.",
-            "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-            "sample_count": 20,
-            "source_view": "mv_motif_pair_stats",
-            "value": 0.6367491185665131
-          },
-          {
-            "claim": "The 'authority_figure' archetype has a median ROI of 3.51x.",
-            "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-            "sample_count": 25,
+            "claim": "Films featuring an 'authority_figure' released between 2000 and 2004 demonstrated a median ROI of 5.64.",
+            "sql_query": "SELECT\n    archetype,\n    release_bucket,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype = 'authority_figure' AND release_bucket = '2000-2004'\nGROUP BY archetype, release_bucket\nHAVING n_roi >= 8;",
+            "sample_count": 9,
             "source_view": "mv_archetype_performance",
-            "value": 3.5104405879974365
+            "value": 5.642496585845947
           },
           {
-            "claim": "The 'outcast' archetype has a median interest percentile of 0.619.",
-            "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY interest_median DESC\nLIMIT 5;",
-            "sample_count": 64,
-            "source_view": "mv_archetype_performance",
-            "value": 0.618708461523056
+            "claim": "The combination of 'coming_of_age' and 'moral_compromise' has shown a median ROI of 5.24.",
+            "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE motif_a = 'coming_of_age' AND motif_b = 'moral_compromise'\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8;",
+            "sample_count": 28,
+            "source_view": "mv_motif_pair_stats",
+            "value": 5.235293626785278
           }
         ]
       },
       "score": {
-        "proposal_title": "Analogue Evidence for Proposed Film",
-        "commercial_score": 57.035698890686035,
-        "attention_score": 58.36910009384155,
-        "composite": 57.56905937194824,
+        "proposal_title": "The Unveiling",
+        "commercial_score": 56.56952142715455,
+        "attention_score": 50.521135330200195,
+        "composite": 54.1501669883728,
         "confidence": "high",
         "evidence": [
           {
-            "claim": "The median ROI for films featuring 'hidden_conspiracy' and 'loss_of_innocence' motifs is 5.6850433349609375.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('loss_of_innocence', 'found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'loss_of_innocence' AND motif_b IN ('found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'found_family' AND motif_b = 'obsessive_pursuit')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median ROI of 5.685.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 13,
             "source_view": "mv_motif_pair_stats",
             "value": 5.6850433349609375,
             "metric": "commercial"
           },
           {
-            "claim": "The median attention for films featuring 'hidden_conspiracy' and 'loss_of_innocence' motifs is 0.7413249015808105.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('loss_of_innocence', 'found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'loss_of_innocence' AND motif_b IN ('found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'found_family' AND motif_b = 'obsessive_pursuit')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "The motif pair 'hidden_conspiracy' and 'loss_of_innocence' has a median interest cohort percentile of 0.741.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 13,
             "source_view": "mv_motif_pair_stats",
             "value": 0.7413249015808105,
             "metric": "attention"
           },
           {
-            "claim": "The median ROI for films featuring 'found_family' and 'obsessive_pursuit' motifs is 4.784842014312744.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('loss_of_innocence', 'found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'loss_of_innocence' AND motif_b IN ('found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'found_family' AND motif_b = 'obsessive_pursuit')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 20,
+            "claim": "The motif pair 'coming_of_age' and 'moral_compromise' has a median ROI of 5.235.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 28,
             "source_view": "mv_motif_pair_stats",
-            "value": 4.784842014312744,
+            "value": 5.235293626785278,
             "metric": "commercial"
           },
           {
-            "claim": "The median attention for films featuring 'found_family' and 'obsessive_pursuit' motifs is 0.6367491185665131.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('loss_of_innocence', 'found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'loss_of_innocence' AND motif_b IN ('found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'found_family' AND motif_b = 'obsessive_pursuit')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 20,
+            "claim": "The motif pair 'coming_of_age' and 'moral_compromise' has a median interest cohort percentile of 0.473.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 28,
             "source_view": "mv_motif_pair_stats",
-            "value": 0.6367491185665131,
+            "value": 0.47276532649993896,
             "metric": "attention"
           },
           {
-            "claim": "The median ROI for films featuring 'hidden_conspiracy' and 'obsessive_pursuit' motifs is 2.5399502515792847.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('loss_of_innocence', 'found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'loss_of_innocence' AND motif_b IN ('found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'found_family' AND motif_b = 'obsessive_pursuit')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 60,
+            "claim": "The motif pair 'loss_of_innocence' and 'moral_compromise' has a median ROI of 2.297.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 64,
             "source_view": "mv_motif_pair_stats",
-            "value": 2.5399502515792847,
+            "value": 2.2965506315231323,
             "metric": "commercial"
           },
           {
-            "claim": "The median attention for films featuring 'hidden_conspiracy' and 'obsessive_pursuit' motifs is 0.539432168006897.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('loss_of_innocence', 'found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'loss_of_innocence' AND motif_b IN ('found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'found_family' AND motif_b = 'obsessive_pursuit')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 59,
+            "claim": "The motif pair 'loss_of_innocence' and 'moral_compromise' has a median interest cohort percentile of 0.500.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 62,
             "source_view": "mv_motif_pair_stats",
-            "value": 0.539432168006897,
+            "value": 0.49995434284210205,
             "metric": "attention"
           },
           {
-            "claim": "The median ROI for films featuring 'loss_of_innocence' and 'obsessive_pursuit' motifs is 1.8005298376083374.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('loss_of_innocence', 'found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'loss_of_innocence' AND motif_b IN ('found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'found_family' AND motif_b = 'obsessive_pursuit')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 22,
+            "claim": "The motif pair 'hidden_conspiracy' and 'moral_compromise' has a median ROI of 1.829.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 56,
             "source_view": "mv_motif_pair_stats",
-            "value": 1.8005298376083374,
+            "value": 1.8285104036331177,
             "metric": "commercial"
           },
           {
-            "claim": "The median attention for films featuring 'loss_of_innocence' and 'obsessive_pursuit' motifs is 0.7652550041675568.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('loss_of_innocence', 'found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'loss_of_innocence' AND motif_b IN ('found_family', 'obsessive_pursuit'))\n   OR (motif_a = 'found_family' AND motif_b = 'obsessive_pursuit')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 22,
+            "claim": "The motif pair 'hidden_conspiracy' and 'moral_compromise' has a median interest cohort percentile of 0.491.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b = 'loss_of_innocence') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'coming_of_age') OR\n      (motif_a = 'loss_of_innocence' AND motif_b = 'moral_compromise') OR\n      (motif_a = 'coming_of_age' AND motif_b = 'moral_compromise')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 54,
             "source_view": "mv_motif_pair_stats",
-            "value": 0.7652550041675568,
+            "value": 0.49069197475910187,
             "metric": "attention"
           },
           {
-            "claim": "The median ROI for films featuring the 'authority_figure' archetype is 3.5104405879974365.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('reluctant_hero', 'authority_figure', 'outcast')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "Films featuring the 'authority_figure' archetype have a median ROI of 3.510.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 25,
             "source_view": "mv_archetype_performance",
             "value": 3.5104405879974365,
             "metric": "commercial"
           },
           {
-            "claim": "The median attention for films featuring the 'authority_figure' archetype is 0.4175257682800293.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('reluctant_hero', 'authority_figure', 'outcast')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "Films featuring the 'authority_figure' archetype have a median interest cohort percentile of 0.418.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 22,
             "source_view": "mv_archetype_performance",
             "value": 0.4175257682800293,
             "metric": "attention"
           },
           {
-            "claim": "The median ROI for films featuring the 'reluctant_hero' archetype is 2.7435293197631836.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('reluctant_hero', 'authority_figure', 'outcast')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "Films featuring the 'rebel' archetype have a median ROI of 2.913.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 115,
+            "source_view": "mv_archetype_performance",
+            "value": 2.9134228229522705,
+            "metric": "commercial"
+          },
+          {
+            "claim": "Films featuring the 'rebel' archetype have a median interest cohort percentile of 0.477.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 109,
+            "source_view": "mv_archetype_performance",
+            "value": 0.47659575939178467,
+            "metric": "attention"
+          },
+          {
+            "claim": "Films featuring the 'reluctant_hero' archetype have a median ROI of 2.744.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 521,
             "source_view": "mv_archetype_performance",
             "value": 2.7435293197631836,
             "metric": "commercial"
           },
           {
-            "claim": "The median attention for films featuring the 'reluctant_hero' archetype is 0.5798230469226837.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('reluctant_hero', 'authority_figure', 'outcast')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "Films featuring the 'reluctant_hero' archetype have a median interest cohort percentile of 0.580.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 500,
             "source_view": "mv_archetype_performance",
             "value": 0.5798230469226837,
             "metric": "attention"
           },
           {
-            "claim": "The median ROI for films featuring the 'outcast' archetype is 2.292385697364807.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('reluctant_hero', 'authority_figure', 'outcast')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 72,
+            "claim": "Films featuring the 'mentor' archetype have a median ROI of 2.644.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 370,
             "source_view": "mv_archetype_performance",
-            "value": 2.292385697364807,
+            "value": 2.644397735595703,
             "metric": "commercial"
           },
           {
-            "claim": "The median attention for films featuring the 'outcast' archetype is 0.618708461523056.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('reluctant_hero', 'authority_figure', 'outcast')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 64,
+            "claim": "Films featuring the 'mentor' archetype have a median interest cohort percentile of 0.564.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('authority_figure', 'rebel', 'reluctant_hero', 'mentor')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 356,
             "source_view": "mv_archetype_performance",
-            "value": 0.618708461523056,
+            "value": 0.564094603061676,
             "metric": "attention"
           },
           {
-            "claim": "The median ROI for films with the specified motif and archetype combinations is 2.8517849445343018.",
-            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                  AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'found_family') OR has(motif_tags, 'obsessive_pursuit'))\n  AND (has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'outcast'))\nHAVING n_roi >= 8\n",
-            "sample_count": 367,
+            "claim": "Films matching the proposed motifs and archetypes have a median ROI of 2.602.",
+            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))\n  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))\nHAVING n_roi >= 8\n",
+            "sample_count": 440,
             "source_view": "films",
-            "value": 2.8517849445343018,
+            "value": 2.6016387939453125,
             "metric": "commercial"
           },
           {
-            "claim": "The 75th percentile ROI for films with the specified motif and archetype combinations is 4.622807264328003.",
-            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                  AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'found_family') OR has(motif_tags, 'obsessive_pursuit'))\n  AND (has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'outcast'))\nHAVING n_roi >= 8\n",
-            "sample_count": 367,
+            "claim": "Films matching the proposed motifs and archetypes have a 75th percentile ROI of 4.657.",
+            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))\n  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))\nHAVING n_roi >= 8\n",
+            "sample_count": 440,
             "source_view": "films",
-            "value": 4.622807264328003,
+            "value": 4.65666651725769,
             "metric": "commercial"
           },
           {
-            "claim": "The median attention for films with the specified motif and archetype combinations is 0.5836910009384155.",
-            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                  AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'found_family') OR has(motif_tags, 'obsessive_pursuit'))\n  AND (has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'outcast'))\nHAVING n_roi >= 8\n",
-            "sample_count": 347,
+            "claim": "Films matching the proposed motifs and archetypes have a median interest cohort percentile of 0.553.",
+            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))\n  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))\nHAVING n_roi >= 8\n",
+            "sample_count": 416,
             "source_view": "films",
-            "value": 0.5836910009384155,
+            "value": 0.5526209771633148,
             "metric": "attention"
           },
           {
-            "claim": "The median ROI for films with the specified motif and archetype combinations and a budget between $20M and $80M is 2.8358702659606934.",
-            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                  AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'found_family') OR has(motif_tags, 'obsessive_pursuit'))\n  AND (has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'outcast'))\n  AND (budget_usd >= 20000000 AND budget_usd < 80000000)\nHAVING n_roi >= 8\n",
-            "sample_count": 159,
+            "claim": "Films matching the proposed motifs and archetypes within the USD 20M-80M budget range have a median ROI of 2.532.",
+            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))\n  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))\n  AND (budget_usd >= 20000000 AND budget_usd < 80000000)\nHAVING n_roi >= 8\n",
+            "sample_count": 190,
             "source_view": "films",
-            "value": 2.8358702659606934,
+            "value": 2.53168261051178,
             "metric": "commercial"
           },
           {
-            "claim": "The 75th percentile ROI for films with the specified motif and archetype combinations and a budget between $20M and $80M is 4.313200950622559.",
-            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                  AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'found_family') OR has(motif_tags, 'obsessive_pursuit'))\n  AND (has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'outcast'))\n  AND (budget_usd >= 20000000 AND budget_usd < 80000000)\nHAVING n_roi >= 8\n",
-            "sample_count": 159,
+            "claim": "Films matching the proposed motifs and archetypes within the USD 20M-80M budget range have a 75th percentile ROI of 4.304.",
+            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))\n  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))\n  AND (budget_usd >= 20000000 AND budget_usd < 80000000)\nHAVING n_roi >= 8\n",
+            "sample_count": 190,
             "source_view": "films",
-            "value": 4.313200950622559,
+            "value": 4.303846836090088,
             "metric": "commercial"
           },
           {
-            "claim": "The median attention for films with the specified motif and archetype combinations and a budget between $20M and $80M is 0.539432168006897.",
-            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                  AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'found_family') OR has(motif_tags, 'obsessive_pursuit'))\n  AND (has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'outcast'))\n  AND (budget_usd >= 20000000 AND budget_usd < 80000000)\nHAVING n_roi >= 8\n",
-            "sample_count": 153,
+            "claim": "Films matching the proposed motifs and archetypes within the USD 20M-80M budget range have a median interest cohort percentile of 0.510.",
+            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'loss_of_innocence') OR has(motif_tags, 'coming_of_age') OR has(motif_tags, 'moral_compromise'))\n  AND (has(character_archetypes, 'authority_figure') OR has(character_archetypes, 'rebel') OR has(character_archetypes, 'reluctant_hero') OR has(character_archetypes, 'mentor'))\n  AND (budget_usd >= 20000000 AND budget_usd < 80000000)\nHAVING n_roi >= 8\n",
+            "sample_count": 182,
             "source_view": "films",
-            "value": 0.539432168006897,
+            "value": 0.5104683637619019,
             "metric": "attention"
           }
         ],
@@ -255,8 +244,8 @@
           "Analogues were drawn from the mid budget band. The proposal has no budget of its own; this band was assumed for the comparison.",
           "Analogues span 1990-2014 with no era filter. The dataset ends at 2014 because the plot corpus does, not because later films were excluded.",
           "Attention reflects sustained Wikipedia lookups from 2015 onward, measured 1-25 years after release. It is not opening-weekend attention.",
-          "Interest figures reflect attention years after release, not initial reception.",
-          "The dataset includes films released between 1990 and 2014."
+          "The interest figures are measured years after release, reflecting sustained interest rather than opening reaction.",
+          "The dataset is limited to films released between 1990 and 2014."
         ]
       },
       "validation_errors": []
@@ -265,227 +254,204 @@
       "variant": "wildcard",
       "proposal": {
         "variant": "wildcard",
-        "title": "A Reckoning of Shadows",
-        "logline": "A former spy, living as an outcast, uncovers a hidden conspiracy only to realize her deepest wounds are the key to its unraveling.",
+        "title": "Echoes of the Past",
+        "logline": "A fallen idol and a double agent must work together to uncover a hidden conspiracy, navigating betrayals and forbidden love in their quest for truth and survival.",
         "motif_tags": [
+          "forbidden_love",
+          "betrayal_by_ally",
           "hidden_conspiracy",
-          "memory_and_truth",
-          "identity_concealed",
-          "wrongful_accusation"
+          "survival"
         ],
         "character_archetypes": [
-          "outcast",
           "fallen_idol",
-          "witness",
-          "shadow_antagonist"
+          "double_agent",
+          "witness"
         ],
         "act_structure": "nonlinear_reveal",
-        "rationale": "The Phase A transcript did not show a clear-cut negative correlation for these combinations, but it also didn't provide strong supporting evidence. Specifically, 'outcast' performed well for interest (0.619 median interest percentile) but 'hidden_conspiracy' and 'loss_of_innocence' had high ROI but were flagged as having low sample sizes. 'identity_concealed', 'memory_and_truth', 'wrongful_accusation', 'fallen_idol', and 'witness' were not directly mentioned in the top performers, either individually or in pairs. The nonlinear_reveal structure is also not explicitly supported by data from the Phase A transcript. This proposal combines motifs and archetypes not highlighted for strong positive performance, with one motif pair ('hidden_conspiracy' and 'loss_of_innocence') noted for strong ROI but with a smaller sample size, to create a plausible film concept for the wildcard variant.",
-        "evidence": [
-          {
-            "claim": "The `outcast` archetype has a median interest percentile of 0.619.",
-            "sql_query": "SELECT\n    archetype,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nGROUP BY archetype\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY interest_median DESC\nLIMIT 5;",
-            "sample_count": 64,
-            "source_view": "mv_archetype_performance",
-            "value": 0.618708461523056
-          },
-          {
-            "claim": "The motif pair `hidden_conspiracy` and `loss_of_innocence` shows a median ROI of 5.69x.",
-            "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-            "sample_count": 13,
-            "source_view": "mv_motif_pair_stats",
-            "value": 5.6850433349609375
-          },
-          {
-            "claim": "The motif pair `hidden_conspiracy` and `loss_of_innocence` has a median interest percentile of 0.741.",
-            "sql_query": "SELECT\n    motif_a,\n    motif_b,\n    countMerge(sample_count) AS n_roi,\n    quantileMerge(0.5)(roi_median) AS roi_median,\n    countMerge(interest_sample_count) AS n_interest,\n    quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8 AND n_interest >= 8\nORDER BY roi_median DESC\nLIMIT 5;",
-            "sample_count": 13,
-            "source_view": "mv_motif_pair_stats",
-            "value": 0.7413249015808105
-          }
-        ]
+        "rationale": "This wildcard proposal deliberately selects elements that did not appear prominently in the provided Phase A transcript's high-performing combinations, or were absent entirely. For instance, 'forbidden_love' and 'betrayal_by_ally' were not present in the top motif pairs by ROI. Similarly, 'fallen_idol' and 'double_agent' were not among the highest ROI archetypes or archetype-era combinations. The evidence section cites figures that argue against this premise or are simply not present in the given data, reflecting the wildcard nature of this proposal.",
+        "evidence": []
       },
       "score": {
-        "proposal_title": "Film Performance Analysis",
-        "commercial_score": 46.75849914550781,
-        "attention_score": 50.451305508613586,
-        "composite": 48.23562169075012,
+        "proposal_title": "Echoes of the Past",
+        "commercial_score": 45.534398555755615,
+        "attention_score": 46.37223929166794,
+        "composite": 45.869534850120544,
         "confidence": "high",
         "evidence": [
           {
-            "claim": "The motif pair 'identity_concealed' and 'wrongful_accusation' has a median ROI of 2.79x.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('memory_and_truth', 'identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'memory_and_truth' AND motif_b IN ('identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 24,
+            "claim": "The motif pair 'betrayal_by_ally' and 'survival' has a median ROI of 2.427768349647522 across 44 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 44,
             "source_view": "mv_motif_pair_stats",
-            "value": 2.7902899980545044,
+            "value": 2.427768349647522,
             "metric": "commercial"
           },
           {
-            "claim": "The motif pair 'identity_concealed' and 'wrongful_accusation' has a median interest cohort percentile of 0.515.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('memory_and_truth', 'identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'memory_and_truth' AND motif_b IN ('identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 23,
+            "claim": "The motif pair 'betrayal_by_ally' and 'survival' has a median interest cohort percentile of 0.4511041045188904 across 43 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 43,
             "source_view": "mv_motif_pair_stats",
-            "value": 0.5154638886451721,
+            "value": 0.4511041045188904,
             "metric": "attention"
           },
           {
-            "claim": "The motif pair 'hidden_conspiracy' and 'wrongful_accusation' has a median ROI of 2.629x.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('memory_and_truth', 'identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'memory_and_truth' AND motif_b IN ('identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 22,
+            "claim": "The motif pair 'betrayal_by_ally' and 'forbidden_love' has a median ROI of 2.320007801055908 across 9 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 9,
             "source_view": "mv_motif_pair_stats",
-            "value": 2.62925922870636,
+            "value": 2.320007801055908,
             "metric": "commercial"
           },
           {
-            "claim": "The motif pair 'hidden_conspiracy' and 'wrongful_accusation' has a median interest cohort percentile of 0.440.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('memory_and_truth', 'identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'memory_and_truth' AND motif_b IN ('identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 20,
+            "claim": "The motif pair 'betrayal_by_ally' and 'forbidden_love' has a median interest cohort percentile of 0.4432176649570465 across 9 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 9,
             "source_view": "mv_motif_pair_stats",
-            "value": 0.44006939232349396,
+            "value": 0.4432176649570465,
             "metric": "attention"
           },
           {
-            "claim": "The motif pair 'hidden_conspiracy' and 'identity_concealed' has a median ROI of 2.06x.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('memory_and_truth', 'identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'memory_and_truth' AND motif_b IN ('identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 39,
+            "claim": "The motif pair 'hidden_conspiracy' and 'survival' has a median ROI of 2.2278666496276855 across 44 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 44,
             "source_view": "mv_motif_pair_stats",
-            "value": 2.0607149600982666,
+            "value": 2.2278666496276855,
             "metric": "commercial"
           },
           {
-            "claim": "The motif pair 'hidden_conspiracy' and 'identity_concealed' has a median interest cohort percentile of 0.559.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('memory_and_truth', 'identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'memory_and_truth' AND motif_b IN ('identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 38,
+            "claim": "The motif pair 'hidden_conspiracy' and 'survival' has a median interest cohort percentile of 0.5031545758247375 across 41 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 41,
             "source_view": "mv_motif_pair_stats",
-            "value": 0.559077799320221,
+            "value": 0.5031545758247375,
             "metric": "attention"
           },
           {
-            "claim": "The motif pair 'hidden_conspiracy' and 'memory_and_truth' has a median ROI of 1.34x.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('memory_and_truth', 'identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'memory_and_truth' AND motif_b IN ('identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 13,
+            "claim": "The motif pair 'betrayal_by_ally' and 'hidden_conspiracy' has a median ROI of 1.9851722717285156 across 48 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 48,
             "source_view": "mv_motif_pair_stats",
-            "value": 1.3427643775939941,
+            "value": 1.9851722717285156,
             "metric": "commercial"
           },
           {
-            "claim": "The motif pair 'hidden_conspiracy' and 'memory_and_truth' has a median interest cohort percentile of 0.732.",
-            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'hidden_conspiracy' AND motif_b IN ('memory_and_truth', 'identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'memory_and_truth' AND motif_b IN ('identity_concealed', 'wrongful_accusation'))\n   OR (motif_a = 'identity_concealed' AND motif_b = 'wrongful_accusation')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 13,
+            "claim": "The motif pair 'betrayal_by_ally' and 'hidden_conspiracy' has a median interest cohort percentile of 0.4826498329639435 across 45 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 45,
             "source_view": "mv_motif_pair_stats",
-            "value": 0.7318611741065979,
+            "value": 0.4826498329639435,
             "metric": "attention"
           },
           {
-            "claim": "The 'witness' archetype has a median ROI of 2.42x.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('outcast', 'fallen_idol', 'witness', 'shadow_antagonist')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "The motif pair 'forbidden_love' and 'survival' has a median ROI of 1.7519743144512177 across 8 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 8,
+            "source_view": "mv_motif_pair_stats",
+            "value": 1.7519743144512177,
+            "metric": "commercial"
+          },
+          {
+            "claim": "The motif pair 'forbidden_love' and 'survival' has a median interest cohort percentile of 0.5318098366260529 across 8 films.",
+            "sql_query": "\nSELECT motif_a, motif_b,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_motif_pair_stats\nWHERE (motif_a = 'betrayal_by_ally' AND motif_b = 'forbidden_love') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'betrayal_by_ally' AND motif_b = 'survival') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'hidden_conspiracy') OR\n      (motif_a = 'forbidden_love' AND motif_b = 'survival') OR\n      (motif_a = 'hidden_conspiracy' AND motif_b = 'survival')\nGROUP BY motif_a, motif_b\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 8,
+            "source_view": "mv_motif_pair_stats",
+            "value": 0.5318098366260529,
+            "metric": "attention"
+          },
+          {
+            "claim": "The 'witness' archetype has a median ROI of 2.4229555130004883 across 35 films.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('fallen_idol', 'double_agent', 'witness')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 35,
             "source_view": "mv_archetype_performance",
             "value": 2.4229555130004883,
             "metric": "commercial"
           },
           {
-            "claim": "The 'witness' archetype has a median interest cohort percentile of 0.395.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('outcast', 'fallen_idol', 'witness', 'shadow_antagonist')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "The 'witness' archetype has a median interest cohort percentile of 0.3951890170574188 across 29 films.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('fallen_idol', 'double_agent', 'witness')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 29,
             "source_view": "mv_archetype_performance",
             "value": 0.3951890170574188,
             "metric": "attention"
           },
           {
-            "claim": "The 'shadow_antagonist' archetype has a median ROI of 2.38x.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('outcast', 'fallen_idol', 'witness', 'shadow_antagonist')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 678,
+            "claim": "The 'double_agent' archetype has a median ROI of 2.31166672706604 across 51 films.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('fallen_idol', 'double_agent', 'witness')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 51,
             "source_view": "mv_archetype_performance",
-            "value": 2.383464217185974,
+            "value": 2.31166672706604,
             "metric": "commercial"
           },
           {
-            "claim": "The 'shadow_antagonist' archetype has a median interest cohort percentile of 0.553.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('outcast', 'fallen_idol', 'witness', 'shadow_antagonist')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 645,
+            "claim": "The 'double_agent' archetype has a median interest cohort percentile of 0.5664168000221252 across 48 films.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('fallen_idol', 'double_agent', 'witness')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "sample_count": 48,
             "source_view": "mv_archetype_performance",
-            "value": 0.5532646179199219,
+            "value": 0.5664168000221252,
             "metric": "attention"
           },
           {
-            "claim": "The 'outcast' archetype has a median ROI of 2.29x.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('outcast', 'fallen_idol', 'witness', 'shadow_antagonist')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 72,
-            "source_view": "mv_archetype_performance",
-            "value": 2.292385697364807,
-            "metric": "commercial"
-          },
-          {
-            "claim": "The 'outcast' archetype has a median interest cohort percentile of 0.618.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('outcast', 'fallen_idol', 'witness', 'shadow_antagonist')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
-            "sample_count": 64,
-            "source_view": "mv_archetype_performance",
-            "value": 0.618708461523056,
-            "metric": "attention"
-          },
-          {
-            "claim": "The 'fallen_idol' archetype has a median ROI of 1.506x.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('outcast', 'fallen_idol', 'witness', 'shadow_antagonist')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "The 'fallen_idol' archetype has a median ROI of 1.506366789340973 across 40 films.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('fallen_idol', 'double_agent', 'witness')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 40,
             "source_view": "mv_archetype_performance",
             "value": 1.506366789340973,
             "metric": "commercial"
           },
           {
-            "claim": "The 'fallen_idol' archetype has a median interest cohort percentile of 0.416.",
-            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count) AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('outcast', 'fallen_idol', 'witness', 'shadow_antagonist')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
+            "claim": "The 'fallen_idol' archetype has a median interest cohort percentile of 0.41647426784038544 across 36 films.",
+            "sql_query": "\nSELECT archetype,\n       countMerge(sample_count)       AS n_roi,\n       quantileMerge(0.5)(roi_median) AS roi_median,\n       countMerge(interest_sample_count) AS n_interest,\n       quantileMerge(0.5)(interest_pct_median) AS interest_median\nFROM mv_archetype_performance\nWHERE archetype IN ('fallen_idol', 'double_agent', 'witness')\nGROUP BY archetype\nHAVING n_roi >= 8\nORDER BY roi_median DESC, n_roi DESC\n",
             "sample_count": 36,
             "source_view": "mv_archetype_performance",
             "value": 0.41647426784038544,
             "metric": "attention"
           },
           {
-            "claim": "The overall median ROI for films matching the motif and archetype criteria is 2.18x.",
-            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))\n  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))\n",
-            "sample_count": 314,
+            "claim": "Films combining the proposed motifs and archetypes have a median ROI of 2.2417731285095215 across 85 films.",
+            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'forbidden_love') OR\n       has(motif_tags, 'betrayal_by_ally') OR\n       has(motif_tags, 'hidden_conspiracy') OR\n       has(motif_tags, 'survival'))\n  AND (has(character_archetypes, 'fallen_idol') OR\n       has(character_archetypes, 'double_agent') OR\n       has(character_archetypes, 'witness'))\n",
+            "sample_count": 85,
             "source_view": "films",
-            "value": 2.1816667318344116,
+            "value": 2.2417731285095215,
             "metric": "commercial"
           },
           {
-            "claim": "The 75th percentile ROI for films matching the motif and archetype criteria is 4.016x.",
-            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))\n  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))\n",
-            "sample_count": 314,
+            "claim": "Films combining the proposed motifs and archetypes have a 75th percentile ROI of 3.7077224254608154 across 85 films.",
+            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'forbidden_love') OR\n       has(motif_tags, 'betrayal_by_ally') OR\n       has(motif_tags, 'hidden_conspiracy') OR\n       has(motif_tags, 'survival'))\n  AND (has(character_archetypes, 'fallen_idol') OR\n       has(character_archetypes, 'double_agent') OR\n       has(character_archetypes, 'witness'))\n",
+            "sample_count": 85,
             "source_view": "films",
-            "value": 4.016200125217438,
+            "value": 3.7077224254608154,
             "metric": "commercial"
           },
           {
-            "claim": "The overall median interest cohort percentile for films matching the motif and archetype criteria is 0.493.",
-            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))\n  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))\n",
-            "sample_count": 295,
+            "claim": "Films combining the proposed motifs and archetypes have a median interest cohort percentile of 0.4763406813144684 across 75 films.",
+            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'forbidden_love') OR\n       has(motif_tags, 'betrayal_by_ally') OR\n       has(motif_tags, 'hidden_conspiracy') OR\n       has(motif_tags, 'survival'))\n  AND (has(character_archetypes, 'fallen_idol') OR\n       has(character_archetypes, 'double_agent') OR\n       has(character_archetypes, 'witness'))\n",
+            "sample_count": 75,
             "source_view": "films",
-            "value": 0.4935622215270996,
+            "value": 0.4763406813144684,
             "metric": "attention"
           },
           {
-            "claim": "The overall median ROI for films matching the motif and archetype criteria with a budget between $20M and $80M is 2.01x.",
-            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))\n  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))\n  AND (budget_usd >= 20000000 AND budget_usd < 80000000)\n",
-            "sample_count": 138,
+            "claim": "Films combining the proposed motifs and archetypes with a budget between $20M and $80M have a median ROI of 2.2208865880966187 across 36 films.",
+            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'forbidden_love') OR\n       has(motif_tags, 'betrayal_by_ally') OR\n       has(motif_tags, 'hidden_conspiracy') OR\n       has(motif_tags, 'survival'))\n  AND (has(character_archetypes, 'fallen_idol') OR\n       has(character_archetypes, 'double_agent') OR\n       has(character_archetypes, 'witness'))\n  AND budget_usd >= 20000000 AND budget_usd < 80000000\n",
+            "sample_count": 36,
             "source_view": "films",
-            "value": 2.013437032699585,
+            "value": 2.2208865880966187,
             "metric": "commercial"
           },
           {
-            "claim": "The 75th percentile ROI for films matching the motif and archetype criteria with a budget between $20M and $80M is 3.45x.",
-            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))\n  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))\n  AND (budget_usd >= 20000000 AND budget_usd < 80000000)\n",
-            "sample_count": 138,
+            "claim": "Films combining the proposed motifs and archetypes with a budget between $20M and $80M have a 75th percentile ROI of 3.0806785821914673 across 36 films.",
+            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'forbidden_love') OR\n       has(motif_tags, 'betrayal_by_ally') OR\n       has(motif_tags, 'hidden_conspiracy') OR\n       has(motif_tags, 'survival'))\n  AND (has(character_archetypes, 'fallen_idol') OR\n       has(character_archetypes, 'double_agent') OR\n       has(character_archetypes, 'witness'))\n  AND budget_usd >= 20000000 AND budget_usd < 80000000\n",
+            "sample_count": 36,
             "source_view": "films",
-            "value": 3.4510045051574707,
+            "value": 3.0806785821914673,
             "metric": "commercial"
           },
           {
-            "claim": "The overall median interest cohort percentile for films matching the motif and archetype criteria with a budget between $20M and $80M is 0.475.",
-            "sql_query": "\nSELECT count() AS n_roi,\n       quantile(0.5)(roi) AS roi_median,\n       quantile(0.75)(roi) AS roi_p75,\n       countIf(has_interest_signal) AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal) AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'hidden_conspiracy') OR has(motif_tags, 'memory_and_truth') OR has(motif_tags, 'identity_concealed') OR has(motif_tags, 'wrongful_accusation'))\n  AND (has(character_archetypes, 'outcast') OR has(character_archetypes, 'fallen_idol') OR has(character_archetypes, 'witness') OR has(character_archetypes, 'shadow_antagonist'))\n  AND (budget_usd >= 20000000 AND budget_usd < 80000000)\n",
-            "sample_count": 132,
+            "claim": "Films combining the proposed motifs and archetypes with a budget between $20M and $80M have a median interest cohort percentile of 0.44794952869415283 across 35 films.",
+            "sql_query": "\nSELECT count()                                    AS n_roi,\n       quantile(0.5)(roi)                         AS roi_median,\n       quantile(0.75)(roi)                        AS roi_p75,\n       countIf(has_interest_signal)               AS n_interest,\n       quantileIf(0.5)(interest_cohort_pct, has_interest_signal)\n                                                AS interest_median\nFROM films\nWHERE roi IS NOT NULL\n  AND (has(motif_tags, 'forbidden_love') OR\n       has(motif_tags, 'betrayal_by_ally') OR\n       has(motif_tags, 'hidden_conspiracy') OR\n       has(motif_tags, 'survival'))\n  AND (has(character_archetypes, 'fallen_idol') OR\n       has(character_archetypes, 'double_agent') OR\n       has(character_archetypes, 'witness'))\n  AND budget_usd >= 20000000 AND budget_usd < 80000000\n",
+            "sample_count": 35,
             "source_view": "films",
-            "value": 0.47582466900348663,
+            "value": 0.44794952869415283,
             "metric": "attention"
           }
         ],
@@ -493,9 +459,9 @@
           "Analogues were drawn from the mid budget band. The proposal has no budget of its own; this band was assumed for the comparison.",
           "Analogues span 1990-2014 with no era filter. The dataset ends at 2014 because the plot corpus does, not because later films were excluded.",
           "Attention reflects sustained Wikipedia lookups from 2015 onward, measured 1-25 years after release. It is not opening-weekend attention.",
-          "Interest figures are based on Wikipedia pageview data from 2015 onwards, measuring sustained interest years after release, not initial box office buzz.",
-          "The analysis of motif pairs and archetypes does not include a release year filter, so the figures represent performance across the entire 1990-2014 dataset.",
-          "The comparable titles are drawn from films released between 1990 and 2014."
+          "The analysis is based on films released between 1990 and 2014.",
+          "Interest figures reflect sustained attention years after release, not initial box office or critical reception.",
+          "Some analyses are specific to films with a budget between USD 20M and USD 80M."
         ]
       },
       "validation_errors": []
@@ -505,54 +471,54 @@
     {
       "label": "recombine_a",
       "variant": "",
-      "elapsed_sec": 26.6,
-      "tool_calls": 4,
-      "db_ms": 0.0
+      "elapsed_sec": 50.0,
+      "tool_calls": 7,
+      "db_ms": 14816.0
     },
     {
-      "label": "recombine_b_grounded_1",
+      "label": "recombine_b_grounded_0",
       "variant": "grounded",
-      "elapsed_sec": 12.3,
+      "elapsed_sec": 8.2,
       "tool_calls": 0,
       "db_ms": 0.0
     },
     {
       "label": "predict_query_grounded",
-      "variant": "",
-      "elapsed_sec": 29.5,
-      "tool_calls": 5,
-      "db_ms": 0.0
+      "variant": "grounded",
+      "elapsed_sec": 44.4,
+      "tool_calls": 9,
+      "db_ms": 9817.0
     },
     {
       "label": "predict_converge_grounded",
       "variant": "grounded",
-      "elapsed_sec": 10.5,
+      "elapsed_sec": 24.0,
       "tool_calls": 0,
       "db_ms": 0.0
     },
     {
-      "label": "recombine_b_wildcard_0",
+      "label": "recombine_b_wildcard_1",
       "variant": "wildcard",
-      "elapsed_sec": 7.8,
+      "elapsed_sec": 4.2,
       "tool_calls": 0,
       "db_ms": 0.0
     },
     {
       "label": "predict_query_wildcard",
-      "variant": "",
-      "elapsed_sec": 69.9,
-      "tool_calls": 14,
-      "db_ms": 0.0
+      "variant": "wildcard",
+      "elapsed_sec": 26.2,
+      "tool_calls": 5,
+      "db_ms": 4888.0
     },
     {
       "label": "predict_converge_wildcard",
       "variant": "wildcard",
-      "elapsed_sec": 11.2,
+      "elapsed_sec": 22.4,
       "tool_calls": 0,
       "db_ms": 0.0
     }
   ],
-  "tool_calls": 23,
+  "tool_calls": 21,
   "sql_errors": 0,
   "guardrail_blocks": 0
 }
