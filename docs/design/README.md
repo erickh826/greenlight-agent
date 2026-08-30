@@ -69,7 +69,9 @@ only as a 2px top hairline, a label and the score bar; the cards are not tinted.
 
 ## What is real and what is drafted
 
-- **Real:** the storyboard frames (a live run, bucket `runs/a94f9da825e6`), the
+- **Real:** the storyboard frames (a live run, bucket `runs/a94f9da825e6` — a
+  different treatment from the one on the cards, used so the layout is judged at
+  real fidelity; the scene copy was rewritten to match what is in them), the
   scores `54.2` / `45.9` (from `docs/m2-greenlight-run.json`), the SQL shown in
   the analysis stepper, `29.5 s database time`, `21 queries`, the 8-film floor,
   and the `5.68x across 13 films` / `3.51x across 25` figures.
