@@ -16,6 +16,30 @@ Every runtime figure comes from a query the browser shows verbatim, with the row
 count and the latency it took. **The score is a historical-analogue score, not a
 box-office forecast**, and nothing in the interface implies otherwise.
 
+## Live Demo Flow
+
+**Live: https://greenlight-277057547230.us-central1.run.app**
+
+Enter a one-sentence original-film brief, or leave the field blank to run the
+default mid-budget prompt. Examples:
+
+- `A mid-budget thriller about a whistleblower uncovering a hidden conspiracy inside a public institution.`
+- `An original family adventure about an unlikely alliance racing to expose a lost invention.`
+- `A contained sci-fi drama about memory, identity and a reluctant hero forced to choose the truth.`
+
+The page then streams the run as it happens:
+
+1. Gemini generates ClickHouse SQL through `mcp-clickhouse`.
+2. ClickHouse returns row counts, preview rows and latency.
+3. The agents produce grounded and wildcard treatment proposals.
+4. The browser shows commercial, attention and composite scores with their SQL.
+5. The user approves one proposal.
+6. The StoryboardAgent generates three checked scenes, then Google media models
+   create 16:9 frames and narration served from Cloud Storage.
+
+The current public path is about **168 seconds** end to end: roughly 115 seconds
+to the two scored proposals, and the rest to the storyboard.
+
 ## Dataset & Metrics Scale
 
 - **Dataset**: **1,238 films** released 1990–2014, each carrying a USD budget, a
@@ -53,7 +77,25 @@ box-office forecast**, and nothing in the interface implies otherwise.
 | **Wikimedia Pageviews API** | Daily Wikipedia article pageviews (2015-07 to present) | **CC0 / Wikimedia API Terms** | Sustained attention & interest proxy in `film_attention`. |
 | **CMU Movie Summary Corpus** | Film plot summaries & Freebase/Wikipedia metadata | **CC BY-SA 3.0** (derived from Wikipedia) | **Ephemeral ETL only**. Raw plot text is processed locally by Gemini Flash to extract high-level abstract motifs. **Raw summaries are never committed to the repository nor stored in ClickHouse**. |
 
-## Architecture
+## Analysis Boundary
+
+Greenlight does not claim that a proposed film will make a specific amount of
+money. The system retrieves historical analogue sets and computes a score from
+their observed ROI and sustained Wikipedia attention. That score is useful for
+comparing the evidence found in this run; it is not a box-office forecast.
+
+The dataset is also deliberately bounded:
+
+- films are limited to matched Wikidata + CMU entries from 1990-2014;
+- attention measures long-term lookup persistence from 2015 onward, not
+  opening-weekend demand;
+- the agent may choose different comparable sets on different runs, so the right
+  claim is "this run's analogue set scored X", not "this film is worth X".
+
+## Runtime Architecture
+
+This is the deployed architecture. The browser, CLI and tests all exercise the
+same `app/pipeline.py` orchestration rather than separate demo logic.
 
 ```
 [Browser]  POST /run · GET /events/{id} (SSE) · POST /approve/{id}
@@ -157,9 +199,43 @@ producing nothing — no error, no disconnect.
 Credentials never enter the image: `.env` is in `.dockerignore`, and Cloud Run
 injects the two secrets from Secret Manager.
 
-## Status
+## Evidence Log Excerpt
 
-**Live: https://greenlight-277057547230.us-central1.run.app**
+The full trace lives in
+[docs/m2-greenlight-trace.log](docs/m2-greenlight-trace.log); the structured run
+document is [docs/m2-greenlight-run.json](docs/m2-greenlight-run.json).
+
+```sql
+SELECT motif_a, motif_b,
+       countMerge(sample_count) AS n_roi,
+       quantileMerge(0.5)(roi_median) AS roi_median,
+       countMerge(interest_sample_count) AS n_interest,
+       quantileMerge(0.5)(interest_pct_median) AS interest_median
+FROM mv_motif_pair_stats
+WHERE motif_a IN ('hidden_conspiracy', 'loss_of_innocence', 'wrongful_accusation')
+  AND motif_b IN ('hidden_conspiracy', 'loss_of_innocence', 'wrongful_accusation')
+GROUP BY motif_a, motif_b
+HAVING n_roi >= 8
+ORDER BY roi_median DESC, n_roi DESC;
+```
+
+Latest committed run excerpt:
+
+```text
+[PASS] every tool_call event carried SQL text: 21/21
+[PASS] stage timings recorded real ClickHouse latency: 29.5s across 21 queries
+
+stage                              variant      sec calls   db_ms
+recombine_a                        -           50.0     7   14816
+predict_query_grounded             grounded    44.4     9    9817
+predict_query_wildcard             wildcard    26.2     5    4888
+sum of stages (serial equivalent)             179.4
+wall clock                                    126.7
+of which ClickHouse                            29.5  (23%)
+saved by running variants together             52.7
+```
+
+## Status
 
 M0–M3 complete. The full path — analysis, two scored proposals, approval,
 storyboard — has been verified inside the production container against live
@@ -208,4 +284,3 @@ Apache-2.0 — see [LICENSE](LICENSE).
 - **Event**: [Agentic Cinema: The Blockbuster Hackathon](https://agentic-cinema.devpost.com/)
 - **Track**: ClickHouse
 - **Platform**: Gemini Enterprise Agent Platform
-

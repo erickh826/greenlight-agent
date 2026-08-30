@@ -768,7 +768,7 @@ image: ClientError on attempt 2/4, retrying in 8s
       並用一句短文說明「輸入 brief → 看 SQL evidence → approve → storyboard」
 - [ ] 英文字幕
 - [ ] 上傳 YouTube 並設為**公開**（非「不公開」）
-- [ ] README：架構圖、資料源授權、分析邊界聲明、執行步驟、log 節錄
+- [x] README：架構圖、資料源授權、分析邊界聲明、執行步驟、log 節錄
 
 **DoD**：影片公開可見；README 完整。
 
