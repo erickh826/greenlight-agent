@@ -79,7 +79,7 @@ def test_extend_merges_follow_up_run_without_pending_sql():
     extra.notes.append("needed archetype surface")
     extra.model_errors.append("ResourceExhausted: 429")
     extra.record_call("SELECT 2")
-    extra.record_response(OK_PAYLOAD)
+    extra.record_response(OK_PAYLOAD, db_ms=125.5)
     extra.record_call("SELECT 3")
 
     base.extend(extra)
@@ -90,6 +90,7 @@ def test_extend_merges_follow_up_run_without_pending_sql():
     assert base.payloads == [OK_PAYLOAD, OK_PAYLOAD]
     assert base.notes == ["needed archetype surface"]
     assert base.model_errors == ["ResourceExhausted: 429"]
+    assert base.db_ms == 125.5
     assert base.pending_sql == []
 
 
