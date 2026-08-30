@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #171716; } a:hover { color: #57564f; }
+    .ed { font-family: "Instrument Serif", Georgia, "Times New Roman", serif; }
+    .mo { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; min-height: 900px; background: #F7F6F2; color: #171716; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 16px; line-height: 1.55; box-sizing: border-box; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 22px 40px; border-bottom: 1px solid #DCDCD5;">
+    <div class="mo" style="font-size: 11px; letter-spacing: .14em;">GREENLIGHT / HISTORICAL ANALOGUE ENGINE</div>
+    <div class="mo" style="font-size: 11px; color: #57564f;">1,238 films · 1990–2014 · ClickHouse</div>
+  </div>
+
+  <div style="flex-grow: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 72px; padding: 76px 40px 0; max-width: 1360px; margin: 0 auto; box-sizing: border-box; width: 100%;">
+
+    <!-- left: the offer and the input -->
+    <div style="display: flex; flex-direction: column; gap: 28px;">
+      <h1 class="ed" style="font-size: 64px; line-height: 1.05; font-weight: 400; margin: 0; letter-spacing: -.015em; text-wrap: pretty;">Turn a film brief into an evidence-backed direction.</h1>
+
+      <p style="margin: 0; font-size: 18px; color: #57564f; max-width: 520px; text-wrap: pretty;">Greenlight finds structural analogues across 1,238 historical films, then turns one chosen route into a pitch-ready storyboard.</p>
+
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
+        <label style="font-size: 15px; font-weight: 600;">Describe the film you want to make</label>
+        <div style="background: #FFFFFF; border: 1px solid #DCDCD5; border-radius: 12px; padding: 18px 20px; min-height: 92px; color: #8b8a82; font-size: 16px;">A contained thriller: an auditor discovers the institution she serves has been paying to keep something quiet.</div>
+        <div style="font-size: 13px; color: #57564f;">Genre, protagonist, conflict, and scale — one sentence is enough.</div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <a href="#" style="display: inline-block; padding: 15px 26px; background: #171716; border-radius: 10px; color: #F7F6F2; text-decoration: none; font-size: 16px; font-weight: 600;">Find historical analogues →</a>
+        <a href="#" style="font-size: 14px; color: #57564f; text-decoration: none; border-bottom: 1px solid #DCDCD5; padding-bottom: 2px;">Use sample brief</a>
+      </div>
+
+      <div style="margin-top: 4px;">
+        <div class="mo" style="font-size: 11px; letter-spacing: .12em; color: #57564f; margin-bottom: 12px;">TRY A STARTING POINT</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+          <span style="display: inline-block; padding: 9px 15px; background: #EFEEE9; border: 1px solid #DCDCD5; border-radius: 999px; font-size: 14px;">Contained conspiracy thriller</span>
+          <span style="display: inline-block; padding: 9px 15px; background: #EFEEE9; border: 1px solid #DCDCD5; border-radius: 999px; font-size: 14px;">Family adventure</span>
+          <span style="display: inline-block; padding: 9px 15px; background: #EFEEE9; border: 1px solid #DCDCD5; border-radius: 999px; font-size: 14px;">Sci-fi identity drama</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- right: what it does, in the order it happens -->
+    <div style="display: flex; flex-direction: column; gap: 0; border-left: 1px solid #DCDCD5; padding-left: 56px;">
+      <div class="mo" style="font-size: 11px; letter-spacing: .12em; color: #57564f; margin-bottom: 22px;">HOW A RUN GOES</div>
+
+      <div style="display: flex; gap: 18px; padding-bottom: 22px;">
+        <span class="mo" style="font-size: 12px; color: #8b8a82; padding-top: 3px;">01</span>
+        <div><div style="font-weight: 600; font-size: 16px;">Narrative DNA</div><div style="font-size: 15px; color: #57564f;">The brief is broken into motifs and archetypes from a closed 55-term vocabulary.</div></div>
+      </div>
+      <div style="display: flex; gap: 18px; padding-bottom: 22px; border-top: 1px solid #DCDCD5; padding-top: 22px;">
+        <span class="mo" style="font-size: 12px; color: #8b8a82; padding-top: 3px;">02</span>
+        <div><div style="font-weight: 600; font-size: 16px;">Live analysis</div><div style="font-size: 15px; color: #57564f;">The agent writes its own SQL against 1,238 films. Every query is shown as it runs.</div></div>
+      </div>
+      <div style="display: flex; gap: 18px; padding-bottom: 22px; border-top: 1px solid #DCDCD5; padding-top: 22px;">
+        <span class="mo" style="font-size: 12px; color: #8b8a82; padding-top: 3px;">03</span>
+        <div><div style="font-weight: 600; font-size: 16px;">Two treatments</div><div style="font-size: 15px; color: #57564f;">One grounded in what the record supports, one deliberately against it — from the same evidence.</div></div>
+      </div>
+      <div style="display: flex; gap: 18px; padding-bottom: 22px; border-top: 1px solid #DCDCD5; padding-top: 22px;">
+        <span class="mo" style="font-size: 12px; color: #8b8a82; padding-top: 3px;">04</span>
+        <div><div style="font-weight: 600; font-size: 16px;">You decide</div><div style="font-size: 15px; color: #57564f;">Nothing is generated until a person approves a direction.</div></div>
+      </div>
+      <div style="display: flex; gap: 18px; border-top: 1px solid #DCDCD5; padding-top: 22px;">
+        <span class="mo" style="font-size: 12px; color: #8b8a82; padding-top: 3px;">05</span>
+        <div><div style="font-weight: 600; font-size: 16px;">Pitch-ready storyboard</div><div style="font-size: 15px; color: #57564f;">Three beats, each with a frame and narration you can play.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="border-top: 1px solid #DCDCD5; margin-top: 64px; padding: 20px 40px;">
+    <p class="mo" style="font-size: 12px; color: #57564f; margin: 0; max-width: 1360px; margin-left: auto; margin-right: auto;">Scores compare the historical analogue set retrieved in this run. They are not box-office forecasts.</p>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

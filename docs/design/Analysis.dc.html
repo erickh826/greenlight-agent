@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #FFB84D; } a:hover { color: #ffcd80; }
+    .ed { font-family: "Instrument Serif", Georgia, "Times New Roman", serif; }
+    .mo { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .dot { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; min-height: 900px; background: #0A0A0A; color: #F7F6F2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 16px; line-height: 1.55; box-sizing: border-box; padding-bottom: 56px;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px 40px; border-bottom: 1px solid #343432;">
+    <div class="mo" style="font-size: 11px; letter-spacing: .14em; color: #A7A7A0;">GREENLIGHT / HISTORICAL ANALOGUE ENGINE</div>
+    <div class="mo" style="font-size: 11px; color: #A7A7A0;">run 4f8c21</div>
+  </div>
+
+  <div style="max-width: 1120px; margin: 0 auto; padding: 0 40px;">
+
+    <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 56px 0 8px;">
+      <h1 class="ed" style="font-size: 40px; font-weight: 400; margin: 0;">Analysis in progress</h1>
+      <span class="mo" style="font-size: 22px; color: #FFB84D;">02:14</span>
+    </div>
+    <p style="margin: 0 0 40px; color: #A7A7A0; font-size: 16px; max-width: 720px;">Reading the brief against 1,238 films. The agent writes its own queries — every one is shown below as it runs.</p>
+
+    <!-- stepper -->
+    <div style="display: flex; flex-direction: column;">
+
+      <div style="display: flex; gap: 18px; padding: 18px 0; border-top: 1px solid #343432;">
+        <span class="dot" style="background: #B7E65C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+        <div style="flex-grow: 1;">
+          <div style="font-size: 16px; font-weight: 600;">Reading the film brief</div>
+          <div style="font-size: 15px; color: #A7A7A0;">A contained thriller, institutional setting, single protagonist.</div>
+        </div>
+        <span class="mo" style="font-size: 12px; color: #A7A7A0; flex-shrink: 0;">0:04</span>
+      </div>
+
+      <div style="display: flex; gap: 18px; padding: 18px 0; border-top: 1px solid #343432;">
+        <span class="dot" style="background: #B7E65C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+        <div style="flex-grow: 1;">
+          <div style="font-size: 16px; font-weight: 600;">Extracting narrative motifs</div>
+          <div style="font-size: 15px; color: #A7A7A0;">Found: hidden conspiracy, loss of innocence, an authority figure and a caregiver.</div>
+        </div>
+        <span class="mo" style="font-size: 12px; color: #A7A7A0; flex-shrink: 0;">0:11</span>
+      </div>
+
+      <div style="display: flex; gap: 18px; padding: 18px 0; border-top: 1px solid #343432; background: #151514; margin: 0 -20px; padding-left: 20px; padding-right: 20px; border-radius: 10px;">
+        <span class="dot" style="border: 2px solid #FFB84D; box-sizing: border-box;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #FFB84D; display: block;"></span></span>
+        <div style="flex-grow: 1;">
+          <div style="font-size: 16px; font-weight: 600;">Querying historical analogues in ClickHouse</div>
+          <div style="font-size: 15px; color: #A7A7A0; margin-bottom: 12px;">13 films pair hidden conspiracy with loss of innocence — median return 5.68x.</div>
+          <div style="background: #0A0A0A; border: 1px solid #343432; border-radius: 8px; padding: 12px 14px;">
+            <div class="mo" style="font-size: 11px; color: #F7F6F2; white-space: pre-wrap; line-height: 1.5;">SELECT motif_a, motif_b,
+       countMerge(sample_count)       AS n_roi,
+       quantileMerge(0.5)(roi_median) AS roi_median
+FROM mv_motif_pair_stats
+WHERE motif_a = 'hidden_conspiracy'
+GROUP BY motif_a, motif_b HAVING n_roi &gt;= 8</div>
+            <div class="mo" style="font-size: 11px; color: #A7A7A0; margin-top: 10px; border-top: 1px solid #343432; padding-top: 8px;">13 rows · 212 ms</div>
+          </div>
+        </div>
+        <span class="mo" style="font-size: 12px; color: #FFB84D; flex-shrink: 0;">running</span>
+      </div>
+
+      <div style="display: flex; gap: 18px; padding: 18px 0; border-top: 1px solid #343432;">
+        <span class="dot" style="border: 2px solid #343432; box-sizing: border-box;"></span>
+        <div style="flex-grow: 1;"><div style="font-size: 16px; color: #A7A7A0;">Comparing ROI distributions</div></div>
+      </div>
+      <div style="display: flex; gap: 18px; padding: 18px 0; border-top: 1px solid #343432;">
+        <span class="dot" style="border: 2px solid #343432; box-sizing: border-box;"></span>
+        <div style="flex-grow: 1;"><div style="font-size: 16px; color: #A7A7A0;">Measuring sustained cultural attention</div></div>
+      </div>
+      <div style="display: flex; gap: 18px; padding: 18px 0; border-top: 1px solid #343432; border-bottom: 1px solid #343432;">
+        <span class="dot" style="border: 2px solid #343432; box-sizing: border-box;"></span>
+        <div style="flex-grow: 1;"><div style="font-size: 16px; color: #A7A7A0;">Composing two treatments</div></div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 28px;">
+      <span class="mo" style="font-size: 12px; color: #A7A7A0;">9 verified queries · 11.4 s database time · 0 errors</span>
+      <a href="#" style="font-size: 14px; text-decoration: none; border-bottom: 1px solid #343432; padding-bottom: 2px;">View live audit trail</a>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

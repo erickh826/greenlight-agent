@@ -1,0 +1,17 @@
+{
+  "artboards": [
+    { "file": "Brief.dc.html",      "x": 0,    "y": 0,    "w": 1440, "h": 940,  "title": "01 · Brief — warm editorial entry" },
+    { "file": "Analysis.dc.html",   "x": 1520, "y": 0,    "w": 1440, "h": 1040, "title": "02 · Live analysis — stepper, not a log" },
+    { "file": "Main.dc.html",       "x": 3040, "y": 0,    "w": 1440, "h": 1270, "title": "03 · Treatments — the decision screen" },
+    { "file": "Storyboard.dc.html", "x": 4560, "y": 0,    "w": 1440, "h": 1160, "title": "04 · Storyboard — caption in the flow" },
+    { "file": "InsufficientEvidence.dc.html", "x": 0,   "y": 1420, "w": 620, "h": 1020, "title": "P0 · Insufficient evidence card" },
+    { "file": "TreatmentsMobile.dc.html",     "x": 780, "y": 1420, "w": 390, "h": 1220, "title": "Treatments · 390px" }
+  ],
+  "annotations": [
+    { "id": "shell",      "x": 0,    "y": -120, "w": 1440, "text": "Warm editorial shell (#F7F6F2) for the brief; near-black production stage (#0A0A0A) from analysis onward. Type: Instrument Serif for creative language, system sans for UI, IBM Plex Mono for evidence." },
+    { "id": "p0-scores",  "x": 3040, "y": -120, "w": 1440, "text": "P0 — every score now carries a benchmark (median of this run's analogue set), an evidence count, and a recommendation strip that says which treatment to pursue and why. 54.2 alone meant nothing to a first-time reader." },
+    { "id": "p0-caption", "x": 4560, "y": -120, "w": 1440, "text": "P0 — the scene caption sits in the document flow beneath the frame, not floated over it. In the shipped build a fixed player bar cut the caption in half. Frames are real output from a live run." },
+    { "id": "p0-card",    "x": 0,    "y": 1310, "w": 620,  "text": "P0 — replaces the card that showed N/A, a 0-evidence count and a \"storyboard below\" CTA at the same time. The review flagged that combination as reading like a crash rather than an honest limit." }
+  ],
+  "launch": { "view": "canvas" }
+}
