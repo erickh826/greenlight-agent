@@ -48,11 +48,49 @@
   button.ghost { background: transparent; color: var(--ink);
                  border: 1px solid var(--line); }
   button:disabled { opacity: .45; cursor: default; }
+  .card button.ghost { background: transparent; color: var(--ink);
+                       border: 1px solid var(--line); }
   .status { color: var(--dim); font-size: .85rem; align-self: center;
             font-family: var(--mono); }
 
   h2 { font-size: .78rem; letter-spacing: .13em; text-transform: uppercase;
        color: var(--faint); margin: 2rem 0 .6rem; font-weight: 600; }
+  .ask { display: block; margin-top: 1.4rem; font-weight: 600; }
+  .hint { margin: .45rem 0 0; color: var(--dim); font-size: .85rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+           margin-top: .9rem; }
+  .chiplabel { font-family: var(--mono); font-size: .7rem; letter-spacing: .1em;
+               text-transform: uppercase; color: var(--faint);
+               margin-right: .2rem; }
+  .chip { background: var(--panel); color: var(--ink);
+          border: 1px solid var(--line); border-radius: 999px;
+          padding: .4rem .8rem; font: inherit; font-size: .85rem;
+          cursor: pointer; }
+  .chip:hover { border-color: var(--accent); }
+  .chip.ghost { background: transparent; color: var(--dim); }
+
+  /* recommendation strip */
+  .rec { background: var(--panel); border: 1px solid var(--line);
+         border-left: 3px solid var(--accent); border-radius: 6px;
+         padding: .9rem 1.1rem; margin-bottom: 1rem; }
+  .rec b { display: block; font-family: var(--mono); font-size: .72rem;
+           letter-spacing: .12em; text-transform: uppercase;
+           color: var(--accent); margin-bottom: .35rem; }
+  .rec p { margin: 0; font-size: .92rem; }
+
+  /* decision status pill on each card */
+  .status-pill { font-family: var(--mono); font-size: .72rem; }
+  .status-pill.backed { color: var(--ok); }
+  .status-pill.thin { color: var(--dim); }
+  .status-pill.none { color: var(--accent); }
+  .cardhead { display: flex; align-items: center; justify-content: space-between;
+              gap: .5rem; }
+
+  /* the insufficient-evidence panel replaces the score block entirely */
+  .noscore { background: #101116; border: 1px solid var(--line);
+             border-radius: 6px; padding: .85rem 1rem; }
+  .noscore b { display: block; margin-bottom: .35rem; }
+  .noscore p { margin: 0; font-size: .85rem; color: var(--dim); }
 
   /* --- evidence stream --- */
   #log {
@@ -128,9 +166,16 @@
   @media (prefers-reduced-motion: reduce) {
     .stage figure.on.playing img { animation: none; transform: scale(1.02); }
   }
-  .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 1rem;
-         font-size: .9rem; color: #f2f3f5;
-         background: linear-gradient(transparent, rgba(0,0,0,.85)); }
+  /* The caption used to sit inside the frame, absolutely positioned along the
+     bottom edge, where the play bar cut it in half. It is a sibling of the
+     stage now: in the flow, below the picture, impossible to cover. */
+  .cap { background: var(--panel); border: 1px solid var(--line);
+         border-top: 0; border-radius: 0 0 6px 6px; padding: .8rem 1rem 1rem;
+         font-size: .9rem; }
+  .cap .slug { font-family: var(--mono); font-size: .7rem; letter-spacing: .1em;
+               text-transform: uppercase; color: var(--faint);
+               display: block; margin-bottom: .3rem; }
+  .stage { border-radius: 6px 6px 0 0; }
   .progress { display: flex; gap: .3rem; margin-top: .5rem; }
   .progress div { height: 3px; flex: 1; background: #1e2027; border-radius: 2px; }
   .progress i { display: block; height: 100%; width: 0; background: var(--accent); }
@@ -142,16 +187,28 @@
 <div class="wrap">
   <header>
     <h1>Greenlight</h1>
-    <p class="sub">An agent queries 1,238 films (1990–2014) in ClickHouse,
-      proposes two treatments, and scores each against
+    <p class="sub">Turn a film brief into an evidence-backed direction. An agent
+      queries 1,238 films (1990–2014) in ClickHouse, proposes two treatments,
+      and scores each against
       <b>historical analogues — not a box-office forecast</b>.</p>
   </header>
 
+  <label class="ask" for="prompt">Describe the film you want to make</label>
   <div class="controls">
     <input id="prompt" type="text" maxlength="400"
-           placeholder="A brief, or leave blank for the default">
-    <button id="go">Run analysis</button>
+           placeholder="A contained thriller: an auditor finds the institution she serves has been paying to keep something quiet.">
+    <button id="go">Find historical analogues →</button>
     <span class="status" id="status"></span>
+  </div>
+  <p class="hint">Genre, protagonist, conflict and scale — one sentence is
+    enough.</p>
+
+  <div class="chips" id="chips">
+    <span class="chiplabel">Try a starting point</span>
+    <button class="chip" type="button">Contained conspiracy thriller</button>
+    <button class="chip" type="button">Family adventure</button>
+    <button class="chip" type="button">Sci-fi identity drama</button>
+    <button class="chip ghost" type="button" data-sample="1">Use sample brief</button>
   </div>
 
   <h2>Evidence stream — every query, verbatim</h2>
@@ -159,12 +216,14 @@
 
   <section id="results" class="hidden">
     <h2>Two proposals from the same evidence</h2>
+    <div class="rec hidden" id="rec"></div>
     <div class="cards" id="cards"></div>
   </section>
 
   <section id="board" class="hidden">
     <h2>Storyboard</h2>
     <div class="stage" id="stage"></div>
+    <div class="cap hidden" id="cap"></div>
     <div class="progress" id="progress"></div>
     <div class="playbar">
       <button id="play">Play</button>
@@ -178,6 +237,9 @@
 const $ = id => document.getElementById(id);
 const log = $("log"), cards = $("cards"), statusEl = $("status");
 let runId = null, source = null, approving = false;
+// Mirrors app/config.MIN_SAMPLE_SIZE. Shown to explain a missing
+// score, never to compute one.
+const MIN_SAMPLE = 8;
 const seen = new Set();
 
 const fmt = v => (v === null || v === undefined) ? "N/A" : Number(v).toFixed(1);
@@ -291,7 +353,10 @@ function listen(id) {
     // The approved card's button said "generating…" for the rest of the
     // session, which reads as still working long after it finished.
     document.querySelectorAll(".card button").forEach(b => {
-      if (b.textContent === "generating…") b.textContent = "storyboard below ↓";
+      // "storyboard below ↓" is the wording the UI review flagged: on a card
+      // with no score it read as data approving something never measured. It
+      // now names what happened instead of where to scroll.
+      if (b.textContent === "generating…") b.textContent = "Approved ✓";
     });
   });
   on("done", () => {
@@ -311,46 +376,135 @@ function listen(id) {
 
 /* --- proposals ---------------------------------------------------------- */
 
-function metric(label, value, note) {
+// Score labels the review asked for: a number needs to say what it measures.
+const LABELS = {
+  commercial: "Commercial resilience",
+  attention: "Sustained cultural interest",
+  composite: "Composite evidence score",
+};
+
+function metric(key, value, strong) {
   const pct = value === null || value === undefined ? 0 : value;
-  return `<div class="metric"><span>${label}</span>
+  return `<div class="metric"><span>${LABELS[key]}</span>
     <span class="bar"><i style="width:${pct}%"></i></span>
-    <span class="val ${value == null ? "na" : ""}">${fmt(value)}</span></div>`
-    + (note ? `<div class="caveat">${esc(note)}</div>` : "");
+    <span class="val ${value == null ? "na" : ""}"${strong ? ' style="font-weight:700"' : ""}>${fmt(value)}</span></div>`;
+}
+
+const scored = s => s && s.composite !== null && s.composite !== undefined;
+
+// Machine keys are hard to read at a glance; underscores are not. This is a
+// string transform, not a translation -- readable "Narrative DNA" prose needs a
+// vocabulary mapping or a model call, and neither exists yet.
+const readable = xs => xs.map(x => x.replace(/_/g, " ")).join(" · ");
+
+/* The three states a treatment can be in. Kept separate on purpose: an honest
+   "we could not measure this" and a measured low score are different products,
+   and the old card said both at once -- three N/A scores, a zero evidence
+   count, and a CTA pointing at a storyboard. */
+function decisionState(s) {
+  if (!scored(s)) return { cls: "none", text: "Insufficient comparable evidence" };
+  if (s.confidence === "high") return { cls: "backed", text: "● Evidence-backed" };
+  return { cls: "thin", text: "◐ Directional evidence" };
+}
+
+/* Which treatment to pursue, and why -- computed from what the run produced,
+   never asserted. No median: app/scoring.py does not compute one for the
+   analogue set, and a benchmark nobody calculated is worse than none. */
+function recommendation(proposals, scores) {
+  const rows = proposals
+    .map(p => ({ p, s: scores.find(x => x.proposal_title === p.title) || {} }))
+    .filter(r => scored(r.s));
+  if (!rows.length) return null;
+
+  if (rows.length === 1) {
+    const { p, s } = rows[0];
+    return { variant: p.variant, why: `It is the only treatment in this run `
+      + `with an analogue set large enough to score. The other could not be `
+      + `measured against the 1,238-film corpus, which is a limit of the `
+      + `record rather than a verdict on the idea.` };
+  }
+  rows.sort((a, b) => b.s.composite - a.s.composite);
+  const [win, other] = rows;
+  const gap = (win.s.composite - other.s.composite).toFixed(1);
+  // "a 8.3-point gap" reads as a typo to anyone skimming.
+  const article = /^[8aeiou]/i.test(gap) ? "an" : "a";
+  return { variant: win.p.variant, why: `Higher composite on the same evidence `
+    + `— ${fmt(win.s.composite)} against ${fmt(other.s.composite)}, ${article} ${gap}-point `
+    + `gap — with ${(win.s.evidence || []).length} figures behind it at `
+    + `${esc(win.s.confidence)} confidence.` };
 }
 
 function render(proposals, scores) {
   $("results").classList.remove("hidden");
   cards.textContent = "";
+
+  const rec = recommendation(proposals, scores);
+  const strip = $("rec");
+  if (rec) {
+    strip.innerHTML = `<b>Recommendation — pursue ${esc(rec.variant)}</b>`
+      + `<p>${rec.why}</p>`;
+    strip.classList.remove("hidden");
+  } else {
+    strip.classList.add("hidden");
+  }
+
   proposals.forEach(p => {
     const s = scores.find(x => x.proposal_title === p.title) || {};
     const ev = s.evidence || [];
+    const state = decisionState(s);
     const el = document.createElement("div");
     el.className = `card ${p.variant}`;
+
+    /* No N/A, no empty bars, no zeroes dressed as scores. A card with nothing
+       measured says so, and says it is not a low score. */
+    const scoreBlock = scored(s)
+      ? `${metric("composite", s.composite, true)}
+         ${metric("commercial", s.commercial_score)}
+         ${metric("attention", s.attention_score)}
+         <div class="conf">${esc(s.confidence)} confidence ·
+           ${ev.length} evidence figures</div>`
+      : `<div class="noscore">
+           <b>No score is shown for this treatment</b>
+           <p>The corpus could not form an analogue set that meets the
+              ${MIN_SAMPLE} sample floor. A number here would imply confidence
+              the record cannot support — this is not a low score, and nothing
+              was measured.</p>
+         </div>`;
+
     el.innerHTML = `
-      <span class="badge">${esc(p.variant)}</span>
+      <div class="cardhead">
+        <span class="badge">${esc(p.variant)}</span>
+        <span class="status-pill ${state.cls}">${esc(state.text)}</span>
+      </div>
       <h3>${esc(p.title)}</h3>
       <p class="logline">${esc(p.logline)}</p>
-      <div class="tags">${esc(p.motif_tags.join(" · "))}<br>
-        ${esc(p.character_archetypes.join(" · "))}</div>
-      ${metric("commercial", s.commercial_score)}
-      ${metric("attention", s.attention_score)}
-      ${metric("composite", s.composite)}
-      <div class="conf">confidence: ${esc(s.confidence || "—")} ·
-        ${ev.length} evidence items</div>
-      <details><summary>Show the ${ev.length} figures and their SQL</summary>
-        ${ev.map(e => `
+      <div class="tags">${esc(readable(p.motif_tags))}<br>
+        ${esc(readable(p.character_archetypes))}</div>
+      ${scoreBlock}
+      <details><summary>${ev.length
+          ? `View evidence, figures &amp; SQL (${ev.length})`
+          : "Why no comparable set was found"}</summary>
+        ${ev.length ? ev.map(e => `
           <p class="claim">${esc(e.claim)}<br>
             <span class="conf">${esc(e.metric || "")} ·
               n=${e.sample_count} · ${esc(e.source_view)}</span></p>
-          <pre>${esc(e.sql_query)}</pre>`).join("")}
+          <pre>${esc(e.sql_query)}</pre>`).join("")
+        : `<p class="caveat">The queries ran and returned rows, but no figure
+             cleared the ${MIN_SAMPLE}-sample floor this project scores against.
+             The caveats below carry the reason the scorer gave.</p>`}
       </details>
       ${(s.caveats || []).length ? `<details><summary>
-        ${s.caveats.length} caveats</summary>
+        ${s.caveats.length} caveat${s.caveats.length === 1 ? "" : "s"}</summary>
         ${s.caveats.map(c => `<p class="caveat">${esc(c)}</p>`).join("")}
         </details>` : ""}`;
+
     const b = document.createElement("button");
-    b.textContent = `Approve ${p.variant} → storyboard`;
+    /* The CTA must not read as data approving something the data never
+       measured. */
+    b.textContent = scored(s)
+      ? `Approve ${p.variant} → storyboard`
+      : `Continue on creative grounds →`;
+    if (rec && rec.variant !== p.variant) b.className = "ghost";
     b.onclick = () => approve(p.variant, b);
     el.appendChild(b);
     cards.appendChild(el);
@@ -387,13 +541,16 @@ function buildBoard(list) {
   $("board").classList.remove("hidden");
   $("stage").innerHTML = scenes.map(s => `
     <figure><img src="${esc(s.image_url)}" alt="${esc(s.description)}"
-       loading="lazy"><figcaption class="cap">${esc(s.description)}</figcaption>
-    </figure>`).join("");
+       loading="lazy"></figure>`).join("");
+  $("cap").classList.remove("hidden");
   $("progress").innerHTML = scenes.map(() => "<div><i></i></div>").join("");
   // Show the opening frame straight away. Waiting for a click leaves a black
   // rectangle where the storyboard is, which reads as a failed image rather
   // than as playback that has not started.
   $("stage").querySelector("figure").classList.add("on");
+  const first = scenes[0];
+  $("cap").innerHTML = `<span class="slug">Scene 01 of ${scenes.length} · `
+    + `${first.duration_sec.toFixed(1)}s</span>${esc(first.description)}`;
   const noAudio = scenes.filter(s => !s.audio_url).length;
   $("playinfo").textContent =
     `${scenes.length} scenes · ` +
@@ -429,6 +586,9 @@ function show(i) {
   current = i;
   $("play").textContent = "Restart";
   const scene = scenes[i];
+  $("cap").innerHTML = `<span class="slug">Scene ${String(i + 1)
+    .padStart(2, "0")} of ${scenes.length} · ${scene.duration_sec.toFixed(1)}s`
+    + `</span>${esc(scene.description)}`;
   const img = figures[i].querySelector("img");
   img.style.animationDuration = `${scene.duration_sec}s`;
 
