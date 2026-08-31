@@ -263,6 +263,15 @@ function line(html, cls) {
 
 /* --- run ---------------------------------------------------------------- */
 
+document.querySelectorAll("#chips .chip").forEach(chip => {
+  chip.onclick = () => {
+    // "Use sample brief" clears the box: an empty brief is exactly what the
+    // server substitutes the default prompt for.
+    $("prompt").value = chip.dataset.sample ? "" : chip.textContent.trim();
+    $("prompt").focus();
+  };
+});
+
 $("go").onclick = async () => {
   $("go").disabled = true;
   log.textContent = ""; cards.textContent = "";
@@ -534,6 +543,10 @@ async function approve(variant, button) {
 
 let scenes = [], current = -1, timer = null;
 const audio = new Audio();
+// Exposed on purpose: it is never added to the DOM, and a top-level const is
+// not reachable from window, so manual/incognito_test.py has no other way to
+// confirm the narration actually decoded rather than 404ing into silence.
+window.audio = audio;
 
 function buildBoard(list) {
   scenes = list.slice().sort((a, b) => a.scene_index - b.scene_index);
